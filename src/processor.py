@@ -33,7 +33,7 @@ class DataProcessor:
         # 获取项目根目录
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(current_dir)
-        return os.path.join(project_root, "data_packs.json")
+        return os.path.join(project_root, "data", "data_packs.json")
     
     def _get_output_path(self) -> str:
         """获取默认的输出数据路径"""

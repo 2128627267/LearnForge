@@ -35,6 +35,13 @@ class DataPackReader:
         project_root = os.path.dirname(current_dir)
         return os.path.join(project_root, "datapacks")
     
+    def _get_output_path(self) -> str:
+        """获取默认的输出数据路径"""
+        # 获取项目根目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        return os.path.join(project_root, "data", "data_packs.json")
+    
     def read_all_packs(self) -> Dict[str, Any]:
         """
         读取所有数据包
@@ -191,7 +198,13 @@ def main():
         print(f"  - {pack_name}: {pack_info.get('word_count', 0)} 个单词")
     
     # 保存结果到文件（供处理程序使用）
-    output_path = os.path.join(reader.databacks_path, "..", "data_packs.json")
+    output_path = reader._get_output_path()
+    
+    # 确保输出目录存在
+    output_dir = os.path.dirname(output_path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(data_packs, f, ensure_ascii=False, indent=2)
     

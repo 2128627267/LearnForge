@@ -34,6 +34,9 @@ def main():
         logger.warning("未找到任何数据包！")
         return
     
+    # 保存数据包到文件
+    save_data_packs(data_packs, logger)
+    
     # 输出数据包内容
     logger.info("\n数据包内容：")
     logger.info("-" * 50)
@@ -86,6 +89,32 @@ def main():
     save_result(result, logger)
     
     logger.info("\n程序运行完成！")
+
+
+def save_data_packs(data_packs, logger):
+    """保存数据包到文件"""
+    import json
+    
+    # 获取项目根目录
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    
+    # 构建输出路径
+    output_dir = os.path.join(project_root, "data")
+    output_path = os.path.join(output_dir, "data_packs.json")
+    
+    # 确保输出目录存在
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        logger.info(f"创建输出目录：{output_dir}")
+    
+    # 保存数据包到文件
+    try:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(data_packs, f, ensure_ascii=False, indent=2)
+        logger.info(f"\n数据包已保存到：{output_path}")
+    except Exception as e:
+        logger.error(f"保存数据包失败：{str(e)}")
 
 
 def save_result(result, logger):

@@ -33,8 +33,7 @@ env/
 *~
 
 # LearnForge 生成的中间文件和结果文件
-data_packs.json
-processed_data.json
+data/*
 datapacks/*
 
 # 日志文件
