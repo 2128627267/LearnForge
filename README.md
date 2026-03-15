@@ -31,17 +31,196 @@ LearnForge (LFG) - 数据
 
 LearnForge 致力于成为学习生态系统的数据引擎，通过标准化的数据包格式和智能算法，为各种学习应用提供高质量、可配置的数据支持，让学习资源的创建、管理和使用变得高效便捷。
 
+### 版本信息
+
+- **当前版本**：1.0.0
+- **Python 要求**：Python 3.6+
+- **依赖**：仅使用 Python 标准库，无需额外安装依赖
+
 ---
+
+## 项目结构
+
+```
+LearnForge/
+├── src/                    # 源代码目录
+│   ├── __init__.py         # 包初始化文件
+│   ├── main.py             # 主入口程序
+│   ├── reader.py            # 数据包读取程序
+│   └── processor.py         # 数据处理程序
+├── datapacks/              # 数据包文件夹
+│   └── your-pack-name/     # 你的数据包
+│       ├── pack.json        # 数据包配置文件
+│       ├── README.md        # 数据包说明文档（可选）
+│       └── data/           # 数据文件夹
+│           ├── 1.json
+│           ├── 2.json
+│           └── ...
+├── run.py                  # 启动脚本
+└── README.md               # 项目说明文档
+```
+
+## 程序使用
+
+### 快速开始
+
+1. **安装依赖**
+   ```bash
+   # 本项目使用 Python 标准库，无需额外安装依赖
+   ```
+
+2. **运行主程序**
+   ```bash
+   python run.py
+   ```
+
+   或直接运行主程序：
+   ```bash
+   python src/main.py
+   ```
+
+### 程序架构
+
+LearnForge 包含三个核心程序，它们可以独立运行，也可以通过主入口程序协调运行：
+
+#### 1. 读取程序 (reader.py)
+- **功能**：读取和解析数据包及其配置文件
+- **职责**：
+  - 扫描数据包目录
+  - 读取 pack.json 配置文件
+  - 解析数据结构映射
+  - 提取数据文件中的单词数据
+  - 统计数据包信息
+- **独立运行**：
+  ```bash
+  python src/reader.py
+  ```
+  独立运行时会自动读取 `datapacks/` 文件夹下的所有数据包，并保存到 `data_packs.json` 文件
+
+#### 2. 处理程序 (processor.py)
+- **功能**：将多个数据包的数据整合到一起
+- **职责**：
+  - 处理每个数据包的数据
+  - 整合所有数据包的数据
+  - 统计词性分布
+  - 生成处理结果
+- **独立运行**：
+  ```bash
+  python src/processor.py
+  ```
+  独立运行时会从 `data_packs.json` 文件读取数据，处理后保存到 `processed_data.json` 文件
+
+#### 3. 主入口程序 (main.py)
+- **功能**：协调读取程序和处理程序，提供统一的启动入口
+- **职责**：
+  - 调用读取程序获取数据包
+  - 调用处理程序处理数据
+  - 输出最终结果
+- **运行方式**：
+  ```bash
+  python src/main.py
+  ```
+  或使用启动脚本：
+  ```bash
+  python run.py
+  ```
+
+### 使用场景
+
+#### 场景 1：使用主入口程序（推荐）
+```bash
+python run.py
+```
+主程序会自动完成所有步骤，输出最终结果。
+
+#### 场景 2：分步执行
+```bash
+# 第一步：读取数据包
+python src/reader.py
+
+# 第二步：处理数据
+python src/processor.py
+```
+适合需要查看中间结果或调试的情况。
+
+#### 场景 3：在其他程序中调用
+```python
+from src.reader import DataPackReader
+from src.processor import DataProcessor
+
+# 读取数据包
+reader = DataPackReader()
+data_packs = reader.read_all_packs()
+
+# 处理数据
+processor = DataProcessor()
+result = processor.process(data_packs)
+
+# 使用结果
+print(result)
+```
+
+### 输出示例
+
+运行主程序后，将输出类似以下内容：
+
+```
+LearnForge (LFG) - 数据处理系统
+==================================================
+
+[步骤 1/2] 读取数据包...
+数据包路径：...\datapacks
+成功读取 1 个数据包
+
+[步骤 2/2] 处理数据...
+数据处理完成！
+
+==================================================
+处理结果：
+==================================================
+
+数据包总数：1
+单词总数：XXX
+数据文件总数：X
+
+数据包详情：
+
+  your-pack-name:
+    - 描述：你的数据包描述
+    - 类型：words_pack
+    - 单词数：XXX
+    - 文件数：X
+```
+
+### 数据流
+
+```
+datapacks/ (数据包文件夹)
+    ↓
+reader.py (读取程序)
+    ↓
+data_packs.json （中间数据文件）
+    ↓
+processor.py (处理程序)
+    ↓
+processed_data.json （最终处理结果）
+    ↓
+main.py （主入口程序）输出结果
+```
+
+---
+
+## DataPack 配置说明
 
 本文档介绍如何配置和使用数据包（DataPack）。
 
 ## 目录结构
 
 ```
-databacks/ # 数据包文件夹
-└── pack_/              # 数据包
-    ├── pack.json           # 核心配置文件
-    └── data/               # 默认数据入口文件夹
+datapacks/              # 数据包文件夹
+└── your-pack-name/     # 你的数据包
+    ├── pack.json        # 核心配置文件
+    └── data/           # 默认数据入口文件夹
         ├── 1.json
         ├── 2.json
         ├── 3.json
@@ -57,8 +236,8 @@ databacks/ # 数据包文件夹
 ```json
 {
     "information": {
-        "name": "ExamplePack",
-        "description": "示例单词数据包",
+        "name": "YourPackName",
+        "description": "你的数据包描述",
         "uuid": "",
         "type": "words_pack"
     }
@@ -124,16 +303,16 @@ databacks/ # 数据包文件夹
 {
     "words": [
         {
-            "name": "",
-            "type": "",
-            "mean": [""],
-            "sentence": [""]
+            "name": "word1",
+            "type": "noun",
+            "mean": ["释义1", "释义2"],
+            "sentence": ["例句1"]
         },
         {
-            "name": "",
-            "type": "",
-            "mean": ["", "", ""],
-            "sentence": [""]
+            "name": "word2",
+            "type": "verb",
+            "mean": ["释义1", "释义2", "释义3"],
+            "sentence": ["例句1"]
         }
     ]
 }
