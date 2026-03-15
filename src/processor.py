@@ -35,6 +35,13 @@ class DataProcessor:
         project_root = os.path.dirname(current_dir)
         return os.path.join(project_root, "data_packs.json")
     
+    def _get_output_path(self) -> str:
+        """获取默认的输出数据路径"""
+        # 获取项目根目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        return os.path.join(project_root, "data", "output", "processed_data.json")
+    
     def process(self, data_packs: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         处理所有数据包
@@ -273,7 +280,13 @@ def main():
     print(f"  - 数据文件总数：{result.get('total_files', 0)}")
     
     # 保存结果到文件
-    output_path = os.path.join(os.path.dirname(processor.input_path), "processed_data.json")
+    output_path = processor._get_output_path()
+    
+    # 确保输出目录存在
+    output_dir = os.path.dirname(output_path)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
     
