@@ -8,288 +8,351 @@ import os
 import json
 import sys
 from typing import Dict, List, Any
+from collections import defaultdict
 
 
 class DataProcessor:
     """数据处理器"""
-    
+
     def __init__(self, input_path: str = None):
         """
         初始化处理器
-        
+
         Args:
             input_path: 输入数据路径，如果为None则使用默认路径
         """
         if input_path is None:
-            # 默认路径：项目根目录下的 data_packs.json
             self.input_path = self._get_default_input_path()
         else:
             self.input_path = input_path
-        
+
         self.processed_data = {}
-    
+
     def _get_default_input_path(self) -> str:
         """获取默认的输入数据路径"""
-        # 获取项目根目录
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(current_dir)
-        return os.path.join(project_root, "data", "data_packs.json")
-    
+        return os.path.join(project_root, "data", "output", "reader_output.json")
+
     def _get_output_path(self) -> str:
         """获取默认的输出数据路径"""
-        # 获取项目根目录
         current_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(current_dir)
         return os.path.join(project_root, "data", "output", "processed_data.json")
-    
-    def process(self, data_packs: Dict[str, Any] = None) -> Dict[str, Any]:
+
+    def process(self, input_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         处理所有数据包
-        
+
         Args:
-            data_packs: 数据包字典，如果为None则从文件读取
-            
+            input_data: 输入数据字典，如果为None则从文件读取
+
         Returns:
             处理结果字典
         """
-        # 如果没有提供数据包，从文件读取
-        if data_packs is None:
-            data_packs = self._load_data_packs()
-        
-        if not data_packs:
+        if input_data is None:
+            input_data = self._load_input_data()
+
+        if not input_data:
             return self._empty_result()
-        
-        # 初始化统计信息
-        total_packs = len(data_packs)
-        total_words = 0
-        total_files = 0
-        packs_info = {}
-        
-        # 处理每个数据包
-        for pack_name, pack_info in data_packs.items():
-            # 统计信息
-            word_count = pack_info.get('word_count', 0)
-            file_count = pack_info.get('file_count', 0)
-            
-            total_words += word_count
-            total_files += file_count
-            
-            # 整合数据
-            pack_data = self._process_pack_data(pack_info)
-            
-            # 保存数据包信息
-            packs_info[pack_name] = {
-                'name': pack_info.get('name', pack_name),
-                'description': pack_info.get('description', ''),
-                'type': pack_info.get('type', 'unknown'),
-                'word_count': word_count,
-                'file_count': file_count,
-                'data': pack_data
-            }
-        
-        # 构建处理结果
+
+        stats = input_data.get('stats', {})
+        files = input_data.get('files', [])
+
+        word_files = []
+        phrase_files = []
+        word_items = []
+        phrase_items = []
+
+        for file_info in files:
+            file_type = file_info.get('type', '')
+            filename = file_info.get('filename', '')
+            file_uuid = file_info.get('uuid', '')
+            file_data = file_info.get('data', [])
+            file_count = file_info.get('count', 0)
+
+            if file_type == 'word':
+                word_files.append({
+                    'filename': filename,
+                    'uuid': file_uuid,
+                    'count': file_count,
+                    'data': file_data
+                })
+                for item in file_data:
+                    item_with_source = self._add_source_info(item, filename, file_uuid, 'word')
+                    word_items.append(item_with_source)
+            elif file_type == 'phrase':
+                phrase_files.append({
+                    'filename': filename,
+                    'uuid': file_uuid,
+                    'count': file_count,
+                    'data': file_data
+                })
+                for item in file_data:
+                    item_with_source = self._add_source_info(item, filename, file_uuid, 'phrase')
+                    phrase_items.append(item_with_source)
+
         result = {
-            'total_packs': total_packs,
-            'total_words': total_words,
-            'total_files': total_files,
-            'packs': packs_info,
-            'integrated_data': self._integrate_all_data(packs_info)
+            'stats': {
+                'word_count': stats.get('word_count', 0),
+                'phrase_count': stats.get('phrase_count', 0),
+                'file_count': stats.get('file_count', 0),
+                'total_count': stats.get('total_count', 0)
+            },
+            'files': {
+                'word_files': word_files,
+                'phrase_files': phrase_files
+            },
+            'integrated_data': self._integrate_all_data(word_items, phrase_items)
         }
-        
+
+        self.processed_data = result
         return result
-    
-    def _load_data_packs(self) -> Dict[str, Any]:
+
+    def _add_source_info(self, item: Dict, filename: str, uuid: str, data_type: str) -> Dict:
         """
-        从文件加载数据包
-        
+        为数据项添加来源信息
+
+        Args:
+            item: 原始数据项
+            filename: 来源文件名
+            uuid: 文件UUID
+            data_type: 数据类型（word或phrase）
+
         Returns:
-            数据包字典
+            添加来源信息后的数据项
+        """
+        item_copy = item.copy()
+        item_copy['source_filename'] = filename
+        item_copy['source_uuid'] = uuid
+        item_copy['data_type'] = data_type
+        return item_copy
+
+    def _load_input_data(self) -> Dict[str, Any]:
+        """
+        从文件加载输入数据
+
+        Returns:
+            输入数据字典
         """
         if not os.path.exists(self.input_path):
             raise FileNotFoundError(f"输入数据文件不存在：{self.input_path}")
-        
+
         with open(self.input_path, 'r', encoding='utf-8') as f:
-            data_packs = json.load(f)
-        
-        return data_packs
-    
-    def _process_pack_data(self, pack_info: Dict) -> Dict[str, List]:
-        """
-        处理单个数据包的数据
-        
-        Args:
-            pack_info: 数据包信息
-            
-        Returns:
-            处理后的数据字典
-        """
-        processed_data = {
-            'words': [],
-            'types': {},
-            'meanings': {}
-        }
-        
-        data_files = pack_info.get('data', [])
-        config = pack_info.get('config', {})
-        
-        # 获取词性映射
-        type_map = config.get('type_map', {})
-        
-        # 处理每个数据文件
-        for file_data in data_files:
-            words = file_data.get('words', [])
-            
-            for word in words:
-                # 提取单词信息
-                word_name = word.get('name', '')
-                word_type = word.get('type', '')
-                word_mean = word.get('mean', [])
-                word_sentence = word.get('sentence', [])
-                
-                if not word_name:
-                    continue
-                
-                # 添加单词
-                processed_data['words'].append({
-                    'name': word_name,
-                    'type': word_type,
-                    'mean': word_mean,
-                    'sentence': word_sentence
-                })
-                
-                # 统计词性
-                if word_type:
-                    if word_type not in processed_data['types']:
-                        processed_data['types'][word_type] = 0
-                    processed_data['types'][word_type] += 1
-                
-                # 统计释义
-                for meaning in word_mean:
-                    if meaning not in processed_data['meanings']:
-                        processed_data['meanings'][meaning] = 0
-                    processed_data['meanings'][meaning] += 1
-        
-        return processed_data
-    
-    def _integrate_all_data(self, packs_info: Dict) -> Dict[str, Any]:
+            input_data = json.load(f)
+
+        return input_data
+
+    def _integrate_all_data(self, word_items: List[Dict], phrase_items: List[Dict]) -> Dict[str, Any]:
         """
         整合所有数据包的数据
-        
+
         Args:
-            packs_info: 数据包信息字典
-            
+            word_items: 单词列表
+            phrase_items: 短语列表
+
         Returns:
             整合后的数据
         """
         integrated = {
             'all_words': [],
+            'all_phrases': [],
+            'all_items': [],
+            'word_types': {},
+            'phrase_types': {},
             'all_types': {},
-            'all_meanings': {},
-            'type_distribution': {}
+            'type_distribution': {},
+            'word_type_distribution': {},
+            'phrase_type_distribution': {}
         }
-        
-        # 整合所有单词
-        for pack_name, pack_data in packs_info.items():
-            processed = pack_data.get('data', {})
-            words = processed.get('words', [])
-            
-            for word in words:
-                integrated['all_words'].append({
-                    'name': word['name'],
-                    'type': word['type'],
-                    'mean': word['mean'],
-                    'sentence': word['sentence'],
-                    'source': pack_name
-                })
-        
-        # 统计所有词性
-        for pack_name, pack_data in packs_info.items():
-            processed = pack_data.get('data', {})
-            types = processed.get('types', {})
-            
-            for word_type, count in types.items():
-                if word_type not in integrated['all_types']:
-                    integrated['all_types'][word_type] = 0
-                integrated['all_types'][word_type] += count
-        
-        # 统计所有释义
-        for pack_name, pack_data in packs_info.items():
-            processed = pack_data.get('data', {})
-            meanings = processed.get('meanings', {})
-            
-            for meaning, count in meanings.items():
-                if meaning not in integrated['all_meanings']:
-                    integrated['all_meanings'][meaning] = 0
-                integrated['all_meanings'][meaning] += count
-        
-        # 计算词性分布
-        total_words = len(integrated['all_words'])
-        for word_type, count in integrated['all_types'].items():
-            if total_words > 0:
+
+        all_items = word_items + phrase_items
+
+        for item in all_items:
+            item_type = item.get('type', '')
+            item_name = item.get('name', '')
+            item_mean = item.get('mean', [])
+            item_sentence = item.get('sentence', [])
+            source_filename = item.get('source_filename', '')
+            source_uuid = item.get('source_uuid', '')
+            data_type = item.get('data_type', '')
+
+            integrated['all_items'].append({
+                'name': item_name,
+                'type': item_type,
+                'mean': item_mean,
+                'sentence': item_sentence,
+                'source_filename': source_filename,
+                'source_uuid': source_uuid,
+                'data_type': data_type
+            })
+
+            if item_type:
+                if item_type not in integrated['all_types']:
+                    integrated['all_types'][item_type] = 0
+                integrated['all_types'][item_type] += 1
+
+        for item in word_items:
+            item_type = item.get('type', '')
+
+            if item_type:
+                if item_type not in integrated['word_types']:
+                    integrated['word_types'][item_type] = 0
+                integrated['word_types'][item_type] += 1
+
+        for item in phrase_items:
+            item_type = item.get('type', 'phrase')
+
+            if item_type:
+                if item_type not in integrated['phrase_types']:
+                    integrated['phrase_types'][item_type] = 0
+                integrated['phrase_types'][item_type] += 1
+
+        integrated['all_words'] = word_items
+        integrated['all_phrases'] = phrase_items
+
+        total_words = len(word_items)
+        if total_words > 0:
+            for word_type, count in integrated['word_types'].items():
                 percentage = (count / total_words) * 100
-                integrated['type_distribution'][word_type] = {
+                integrated['word_type_distribution'][word_type] = {
                     'count': count,
                     'percentage': round(percentage, 2)
                 }
-        
+
+        total_phrases = len(phrase_items)
+        if total_phrases > 0:
+            for phrase_type, count in integrated['phrase_types'].items():
+                percentage = (count / total_phrases) * 100
+                integrated['phrase_type_distribution'][phrase_type] = {
+                    'count': count,
+                    'percentage': round(percentage, 2)
+                }
+
+        total_items = len(all_items)
+        if total_items > 0:
+            for item_type, count in integrated['all_types'].items():
+                percentage = (count / total_items) * 100
+                integrated['type_distribution'][item_type] = {
+                    'count': count,
+                    'percentage': round(percentage, 2)
+                }
+
         return integrated
-    
+
     def _empty_result(self) -> Dict[str, Any]:
         """
         返回空结果
-        
+
         Returns:
             空的结果字典
         """
         return {
-            'total_packs': 0,
-            'total_words': 0,
-            'total_files': 0,
-            'packs': {},
+            'stats': {
+                'word_count': 0,
+                'phrase_count': 0,
+                'file_count': 0,
+                'total_count': 0
+            },
+            'files': {
+                'word_files': [],
+                'phrase_files': []
+            },
             'integrated_data': {
                 'all_words': [],
+                'all_phrases': [],
+                'all_items': [],
+                'word_types': {},
+                'phrase_types': {},
                 'all_types': {},
-                'all_meanings': {},
-                'type_distribution': {}
+                'type_distribution': {},
+                'word_type_distribution': {},
+                'phrase_type_distribution': {}
             }
         }
+
+    def get_words_by_type(self, target_type: str) -> List[Dict]:
+        """
+        获取指定类型的单词
+
+        Args:
+            target_type: 目标词性类型
+
+        Returns:
+            符合条件的数据项列表
+        """
+        if not self.processed_data:
+            return []
+
+        integrated = self.processed_data.get('integrated_data', {})
+        all_items = integrated.get('all_items', [])
+
+        return [item for item in all_items if item.get('type') == target_type]
+
+    def get_words_by_source(self, filename: str = None, uuid: str = None) -> List[Dict]:
+        """
+        获取指定来源的单词
+
+        Args:
+            filename: 文件名
+            uuid: 文件UUID
+
+        Returns:
+            符合条件的数据项列表
+        """
+        if not self.processed_data:
+            return []
+
+        integrated = self.processed_data.get('integrated_data', {})
+        all_items = integrated.get('all_items', [])
+
+        result = []
+        for item in all_items:
+            if filename and item.get('source_filename') == filename:
+                result.append(item)
+            elif uuid and item.get('source_uuid') == uuid:
+                result.append(item)
+
+        return result
 
 
 def main():
     """独立运行时的主函数"""
     print("LearnForge (LFG) - 数据处理程序")
     print("=" * 50)
-    
-    # 初始化处理器（使用默认路径）
+
     processor = DataProcessor()
-    
+
     print(f"输入数据路径：{processor.input_path}")
     print("\n开始处理数据...")
-    
-    # 处理数据
-    result = processor.process()
-    
-    if not result or result.get('total_packs', 0) == 0:
+
+    try:
+        result = processor.process()
+    except FileNotFoundError as e:
+        print(f"\n错误：{str(e)}")
+        sys.exit(1)
+
+    if not result or result.get('stats', {}).get('total_count', 0) == 0:
         print("\n未找到任何数据！")
         return
-    
-    # 输出处理结果
+
+    stats = result.get('stats', {})
+
     print(f"\n处理完成！")
-    print(f"  - 数据包总数：{result.get('total_packs', 0)}")
-    print(f"  - 单词总数：{result.get('total_words', 0)}")
-    print(f"  - 数据文件总数：{result.get('total_files', 0)}")
-    
-    # 保存结果到文件
+    print(f"  - 单词总数：{stats.get('word_count', 0)}")
+    print(f"  - 短语总数：{stats.get('phrase_count', 0)}")
+    print(f"  - 文件总数：{stats.get('file_count', 0)}")
+    print(f"  - 数据项总数：{stats.get('total_count', 0)}")
+
     output_path = processor._get_output_path()
-    
-    # 确保输出目录存在
+
     output_dir = os.path.dirname(output_path)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    
+
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-    
+
     print(f"\n处理结果已保存到：{output_path}")
 
 

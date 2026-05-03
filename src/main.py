@@ -3,167 +3,205 @@ LearnForge (LFG) - 主入口程序
 负责协调读取程序和处理程序，提供统一的启动入口
 """
 
-import sys
 import os
+import sys
+import json
+from typing import Dict
 
 from reader import DataPackReader
 from processor import DataProcessor
 from logger import Logger, get_logger
 
 
-def main():
-    """主函数：协调整个数据处理流程"""
-    # 初始化日志记录器
-    logger = get_logger(name="LearnForge-Main", log_to_file=True, log_to_console=True)
-    
-    logger.section("LearnForge (LFG) - 数据处理系统")
-    
-    # 第一步：读取数据包
-    logger.step(1, 2, "读取数据包")
-    reader = DataPackReader()
-    logger.info(f"数据包路径：{reader.databacks_path}")
-    
-    try:
-        data_packs = reader.read_all_packs()
-        logger.info(f"成功读取 {len(data_packs)} 个数据包")
-    except Exception as e:
-        logger.error(f"读取数据包失败：{str(e)}")
-        return
-    
-    if not data_packs:
-        logger.warning("未找到任何数据包！")
-        return
-    
-    # 保存数据包到文件
-    save_data_packs(data_packs, logger)
-    
-    # 输出数据包内容
-    logger.info("\n数据包内容：")
-    logger.info("-" * 50)
-    for pack_name, pack_info in data_packs.items():
-        logger.info(f"\n  [{pack_name}]")
-        logger.info(f"    名称：{pack_info.get('name', 'N/A')}")
-        logger.info(f"    描述：{pack_info.get('description', 'N/A')}")
-        logger.info(f"    类型：{pack_info.get('type', 'N/A')}")
-        logger.info(f"    单词数：{pack_info.get('word_count', 0)}")
-        logger.info(f"    文件数：{pack_info.get('file_count', 0)}")
-        
-        # 输出数据文件内容
-        data_files = pack_info.get('data', [])
-        if data_files:
-            logger.info(f"    数据文件：")
-            for file_data in data_files:
-                filename = file_data.get('filename', 'N/A')
-                word_count = file_data.get('count', 0)
-                logger.info(f"      - {filename}: {word_count} 个单词")
-                
-                # 输出前3个单词作为示例
-                words = file_data.get('words', [])
-                if words:
-                    logger.info(f"        示例单词：")
-                    for i, word in enumerate(words[:3]):
-                        word_name = word.get('name', 'N/A')
-                        word_type = word.get('type', 'N/A')
-                        word_mean = word.get('mean', [])
-                        mean_str = '；'.join(word_mean) if word_mean else 'N/A'
-                        logger.info(f"          {i+1}. {word_name} ({word_type}) - {mean_str}")
-                    if len(words) > 3:
-                        logger.info(f"          ... 还有 {len(words) - 3} 个单词")
-    
-    # 第二步：处理数据
-    logger.step(2, 2, "处理数据")
-    processor = DataProcessor()
-    
-    try:
-        result = processor.process(data_packs)
-        logger.info("数据处理完成！")
-    except Exception as e:
-        logger.error(f"处理数据失败：{str(e)}")
-        return
-    
-    # 输出结果
-    logger.section("处理结果")
-    print_result(result, logger)
-    
-    # 保存处理结果到文件
-    save_result(result, logger)
-    
-    logger.info("\n程序运行完成！")
-
-
-def save_data_packs(data_packs, logger):
-    """保存数据包到文件"""
-    import json
-    
-    # 获取项目根目录
+def _get_project_root() -> str:
+    """获取项目根目录"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    
-    # 构建输出路径
-    output_dir = os.path.join(project_root, "data")
-    output_path = os.path.join(output_dir, "data_packs.json")
-    
-    # 确保输出目录存在
+    return os.path.dirname(current_dir)
+
+
+def _get_output_dir() -> str:
+    """获取输出目录路径"""
+    return os.path.join(_get_project_root(), "data", "output")
+
+
+def _ensure_output_dir(logger: Logger) -> str:
+    """确保输出目录存在"""
+    output_dir = _get_output_dir()
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         logger.info(f"创建输出目录：{output_dir}")
-    
-    # 保存数据包到文件
+    return output_dir
+
+
+def _save_reader_output(reader: DataPackReader, logger: Logger):
+    """保存Reader输出到文件"""
+    output_dir = _ensure_output_dir(logger)
+    output_path = os.path.join(output_dir, "reader_output.json")
+
     try:
+        reader_dict = reader.to_dict()
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(data_packs, f, ensure_ascii=False, indent=2)
-        logger.info(f"\n数据包已保存到：{output_path}")
+            json.dump(reader_dict, f, ensure_ascii=False, indent=2)
+        logger.info(f"Reader输出已保存到：{output_path}")
     except Exception as e:
-        logger.error(f"保存数据包失败：{str(e)}")
+        logger.error(f"保存Reader输出失败：{str(e)}")
+        raise
 
 
-def save_result(result, logger):
-    """保存处理结果到文件"""
-    import json
-    
-    # 获取项目根目录
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)
-    
-    # 构建输出路径
-    output_dir = os.path.join(project_root, "data", "output")
+def _save_processed_data(result: Dict, logger: Logger):
+    """保存Processor输出到文件"""
+    output_dir = _ensure_output_dir(logger)
     output_path = os.path.join(output_dir, "processed_data.json")
-    
-    # 确保输出目录存在
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        logger.info(f"创建输出目录：{output_dir}")
-    
-    # 保存结果到文件
+
     try:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
-        logger.info(f"\n处理结果已保存到：{output_path}")
+        logger.info(f"处理结果已保存到：{output_path}")
     except Exception as e:
         logger.error(f"保存处理结果失败：{str(e)}")
+        raise
 
 
-def print_result(result, logger):
-    """格式化输出处理结果"""
-    if not result:
-        logger.info("无数据")
+def _print_reader_summary(reader: DataPackReader, logger: Logger):
+    """输出Reader读取结果的汇总信息"""
+    stats = reader.stats
+    logger.info("")
+    logger.info(f"读取统计：共发现 {stats.file_count} 个数据文件")
+    logger.info(f"  - Word文件：{len(reader.get_words())} 个，包含 {stats.word_count} 个单词")
+    logger.info(f"  - Phrase文件：{len(reader.get_phrases())} 个，包含 {stats.phrase_count} 个短语")
+    logger.info(f"  - 总数据项：{stats.total} 个")
+
+
+def _print_file_details(reader: DataPackReader, logger: Logger):
+    """输出每个文件的详细信息"""
+    logger.info("")
+    logger.info("文件详情：")
+    logger.info("-" * 60)
+
+    for data_file in reader.data_files:
+        logger.info(f"  文件名：{data_file.filename}")
+        logger.info(f"  UUID：{data_file.uuid}")
+        logger.info(f"  类型：{data_file.type}")
+        logger.info(f"  数据项数量：{data_file.count}")
+
+        if data_file.data and len(data_file.data) > 0:
+            logger.info(f"  前 {min(3, len(data_file.data))} 个数据项：")
+            for i, item in enumerate(data_file.data[:3]):
+                name = item.get('name', 'N/A')
+                item_type = item.get('type', 'N/A')
+                means = item.get('mean', [])
+                sentences = item.get('sentence', [])
+
+                mean_str = '；'.join(means) if means else 'N/A'
+                sentence_str = sentences[0] if sentences else 'N/A'
+
+                logger.info(f"    {i+1}. 名称：{name}")
+                logger.info(f"       类型：{item_type}")
+                logger.info(f"       含义：{mean_str}")
+                logger.info(f"       例句：{sentence_str}")
+
+        if data_file.count > 3:
+            logger.info(f"    ... 还有 {data_file.count - 3} 个数据项")
+
+        logger.info("")
+
+
+def _print_processed_result(result: Dict, logger: Logger):
+    """输出处理结果的汇总信息"""
+    stats = result.get('stats', {})
+    integrated_data = result.get('integrated_data', {})
+
+    logger.info("")
+    logger.info("处理结果汇总：")
+    logger.info("-" * 60)
+    logger.info(f"  Word数量：{stats.get('word_count', 0)}")
+    logger.info(f"  Phrase数量：{stats.get('phrase_count', 0)}")
+    logger.info(f"  文件数量：{stats.get('file_count', 0)}")
+    logger.info(f"  总数据项：{stats.get('total_count', 0)}")
+
+    word_types = integrated_data.get('word_types', {})
+    phrase_types = integrated_data.get('phrase_types', {})
+    type_distribution = integrated_data.get('type_distribution', {})
+
+    if word_types:
+        logger.info("")
+        logger.info("  Word类型分布：")
+        for word_type, count in word_types.items():
+            dist = type_distribution.get(word_type, {})
+            percentage = dist.get('percentage', 0)
+            logger.info(f"    - {word_type}：{count} 个 ({percentage}%)")
+
+    if phrase_types:
+        logger.info("")
+        logger.info("  Phrase类型分布：")
+        for phrase_type, count in phrase_types.items():
+            dist = type_distribution.get(phrase_type, {})
+            percentage = dist.get('percentage', 0)
+            logger.info(f"    - {phrase_type}：{count} 个 ({percentage}%)")
+
+
+def main():
+    """主函数：协调整个数据处理流程"""
+    logger = get_logger(name="LearnForge-Main", log_to_file=True, log_to_console=True)
+
+    logger.section("LearnForge (LFG) - 数据处理系统")
+
+    reader_output_path = os.path.join(_get_output_dir(), "reader_output.json")
+    processed_output_path = os.path.join(_get_output_dir(), "processed_data.json")
+
+    logger.info(f"Reader输出路径：{reader_output_path}")
+    logger.info(f"处理结果路径：{processed_output_path}")
+
+    logger.step(1, 4, "读取数据包")
+    reader = DataPackReader()
+    logger.info(f"数据包路径：{reader.datapacks_path}")
+
+    try:
+        reader.read_all_files()
+    except FileNotFoundError as e:
+        logger.error(f"数据包目录不存在：{str(e)}")
         return
-    
-    # 输出统计信息
-    logger.info(f"\n数据包总数：{result.get('total_packs', 0)}")
-    logger.info(f"单词总数：{result.get('total_words', 0)}")
-    logger.info(f"数据文件总数：{result.get('total_files', 0)}")
-    
-    # 输出数据包详情
-    packs = result.get('packs', {})
-    if packs:
-        logger.info("\n数据包详情：")
-        for pack_name, pack_info in packs.items():
-            logger.info(f"\n  {pack_name}:")
-            logger.info(f"    - 描述：{pack_info.get('description', 'N/A')}")
-            logger.info(f"    - 类型：{pack_info.get('type', 'N/A')}")
-            logger.info(f"    - 单词数：{pack_info.get('word_count', 0)}")
-            logger.info(f"    - 文件数：{pack_info.get('file_count', 0)}")
+    except Exception as e:
+        logger.error(f"读取数据包失败：{str(e)}")
+        return
+
+    if not reader.data_files:
+        logger.warning("未找到任何数据包文件！")
+        return
+
+    _print_reader_summary(reader, logger)
+    _print_file_details(reader, logger)
+
+    logger.step(2, 4, "保存Reader输出")
+    try:
+        _save_reader_output(reader, logger)
+    except Exception:
+        return
+
+    logger.step(3, 4, "处理数据")
+    processor = DataProcessor()
+
+    try:
+        result = processor.process()
+    except FileNotFoundError as e:
+        logger.error(f"输入数据文件不存在：{str(e)}")
+        return
+    except Exception as e:
+        logger.error(f"处理数据失败：{str(e)}")
+        return
+
+    logger.info("数据处理完成！")
+
+    _print_processed_result(result, logger)
+
+    logger.step(4, 4, "保存处理结果")
+    try:
+        _save_processed_data(result, logger)
+    except Exception:
+        return
+
+    logger.section("程序运行完成")
+    logger.info("所有数据处理流程已成功完成！")
 
 
 if __name__ == "__main__":
