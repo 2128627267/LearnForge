@@ -1,0 +1,213 @@
+/**
+ * 环境变量解析库
+ *
+ * 支持以下配置值语法，按优先级解析：
+ *   1. 直接值：sk-abc123 → 直接使用
+ *   2. 环境变量引用：${OPENAI_API_KEY} → 从 process.env 读取
+ *   3. 本地文件链接：file://C:/keys/openai.txt → 读取文件内容
+ *
+ * 注意：
+ *   - file:// 协议仅在服务端可用（需要文件系统访问）
+ *   - ${ENV_VAR} 在服务端和客户端均可解析（客户端从 process.env 读取）
+ *   - 解析失败时返回空字符串，不抛出异常（避免阻断流程）
+ */
+
+import { getLogger } from "@/lib/utils/logger";
+
+const logger = getLogger("EnvResolver");
+
+// ==================== 常量定义 ====================
+
+/** 环境变量引用语法正则：${VAR_NAME} */
+const ENV_VAR_PATTERN = /^\$\{([A-Z_][A-Z0-9_]*)\}$/;
+
+/** file:// 协议前缀 */
+const FILE_PROTOCOL = "file://";
+
+// ==================== 核心解析函数 ====================
+
+/**
+ * 解析单个配置值
+ *
+ * 解析顺序：
+ *   1. 检测 file:// 协议 → 读取本地文件
+ *   2. 检测 ${ENV_VAR} 语法 → 从环境变量读取
+ *   3. 直接返回原值
+ *
+ * @param value    原始配置值
+ * @param options  解析选项
+ * @returns 解析后的值（失败时返回空字符串或原值）
+ *
+ * @example
+ * resolveValue("sk-abc123")           // → "sk-abc123"
+ * resolveValue("${OPENAI_API_KEY}")   // → process.env.OPENAI_API_KEY
+ * resolveValue("file://C:/keys.txt")  // → 文件内容
+ */
+export function resolveValue(
+  value: string,
+  options: {
+    /** 是否允许 file:// 协议（服务端默认 true，客户端必须 false） */
+    allowFileProtocol?: boolean;
+    /** 文件读取失败时是否返回原值（默认 false，返回空字符串） */
+    fallbackToRaw?: boolean;
+  } = {}
+): string {
+  const { allowFileProtocol = true, fallbackToRaw = false } = options;
+
+  if (!value || typeof value !== "string") {
+    return "";
+  }
+
+  // 1. 检测 file:// 协议
+  if (value.startsWith(FILE_PROTOCOL)) {
+    if (!allowFileProtocol) {
+      logger.warn("file:// 协议在当前环境不可用，已跳过", { value });
+      return fallbackToRaw ? value : "";
+    }
+    return resolveFileLink(value.slice(FILE_PROTOCOL.length), fallbackToRaw);
+  }
+
+  // 2. 检测 ${ENV_VAR} 语法
+  const envMatch = value.match(ENV_VAR_PATTERN);
+  if (envMatch) {
+    const varName = envMatch[1];
+    const envValue = process.env[varName];
+    if (envValue === undefined || envValue === "") {
+      logger.warn(`环境变量 ${varName} 未设置或为空`);
+      return fallbackToRaw ? value : "";
+    }
+    return envValue;
+  }
+
+  // 3. 直接返回原值
+  return value;
+}
+
+/**
+ * 解析 file:// 链接，读取本地文件内容
+ *
+ * @param filePath    文件路径
+ * @param fallbackToRaw 失败时是否返回原值
+ * @returns 文件内容或空字符串
+ */
+function resolveFileLink(
+  filePath: string,
+  fallbackToRaw: boolean
+): string {
+  try {
+    // 动态导入 fs，避免客户端 bundle 包含 Node.js 模块
+    const fs = require("fs") as typeof import("fs");
+    const content = fs.readFileSync(filePath, "utf-8").trim();
+    return content;
+  } catch (err) {
+    logger.error("读取本地文件失败", {
+      filePath,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return fallbackToRaw ? `${FILE_PROTOCOL}${filePath}` : "";
+  }
+}
+
+// ==================== 批量解析函数 ====================
+
+/**
+ * 解析模型配置中的 apiKey 和 apiUrl
+ *
+ * @param config 原始模型配置
+ * @returns 解析后的模型配置（apiKey 和 apiUrl 已替换为实际值）
+ *
+ * @example
+ * const resolved = resolveModelConfig({
+ *   id: "xxx",
+ *   apiKey: "${OPENAI_API_KEY}",
+ *   apiUrl: "https://api.openai.com/v1",
+ *   ...
+ * });
+ * // resolved.apiKey = process.env.OPENAI_API_KEY 的值
+ */
+export function resolveModelConfig<T extends { apiKey: string; apiUrl: string }>(
+  config: T,
+  options: {
+    allowFileProtocol?: boolean;
+    fallbackToRaw?: boolean;
+  } = {}
+): T {
+  return {
+    ...config,
+    apiKey: resolveValue(config.apiKey, options),
+    apiUrl: resolveValue(config.apiUrl, options),
+  };
+}
+
+// ==================== 客户端解析函数 ====================
+
+/**
+ * 客户端环境变量解析（不支持 file:// 协议）
+ *
+ * 用于客户端组件中解析配置值
+ * 仅支持 ${ENV_VAR} 语法，且 process.env 仅包含 NEXT_PUBLIC_ 前缀的变量
+ *
+ * @param value 原始配置值
+ * @returns 解析后的值
+ */
+export function resolveValueClient(value: string): string {
+  return resolveValue(value, {
+    allowFileProtocol: false,
+    fallbackToRaw: true,
+  });
+}
+
+// ==================== 环境变量探测 ====================
+
+/**
+ * 获取可用的环境变量列表（用于设置页展示）
+ *
+ * 返回 process.env 中所有键，过滤掉 Node.js 内部变量
+ *
+ * @param prefix 前缀过滤（如 "OPENAI_" 只返回以此开头的变量）
+ * @returns 环境变量名列表
+ */
+export function listAvailableEnvVars(prefix?: string): string[] {
+  try {
+    const keys = Object.keys(process.env).filter(
+      (key) =>
+        !key.startsWith("npm_") &&
+        !key.startsWith("NODE_") &&
+        !key.startsWith("_") &&
+        (prefix ? key.startsWith(prefix) : true)
+    );
+    return keys.sort();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 检测配置值是否使用了环境变量引用
+ *
+ * @param value 配置值
+ * @returns 是否为 ${ENV_VAR} 语法
+ */
+export function isEnvVarReference(value: string): boolean {
+  return !!value && ENV_VAR_PATTERN.test(value);
+}
+
+/**
+ * 检测配置值是否使用了 file:// 协议
+ *
+ * @param value 配置值
+ * @returns 是否为 file:// 链接
+ */
+export function isFileLink(value: string): boolean {
+  return !!value && value.startsWith(FILE_PROTOCOL);
+}
+
+/**
+ * 检测配置值是否需要解析（环境变量引用或 file:// 链接）
+ *
+ * @param value 配置值
+ * @returns 是否需要解析
+ */
+export function needsResolution(value: string): boolean {
+  return isEnvVarReference(value) || isFileLink(value);
+}

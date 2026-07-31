@@ -1,0 +1,771 @@
+// LearnForge Prisma Schema
+// AI 赋能的便签卡片式学习工具数据库模型
+// 数据库：SQLite（文件型，适合单机/小型部署）
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== 用户与认证 ====================
+
+/// 用户表
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  role         String   @default("user") // user | admin
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // 关联
+  cards         Card[]
+  favorites     CardFavorite[]
+  notes         CardNote[]
+  studyLogs     StudyLog[]
+  reviews       ReviewSchedule[]
+  progress      UserProgress[]
+  conversations AIConversation[]
+  reminders     Reminder[]
+  shareLinks    ShareLink[]
+  roadmaps      Roadmap[]
+
+  @@index([email])
+}
+
+// ==================== 学科与分类 ====================
+
+/// 学科表（英语、数学、其他）
+model Subject {
+  id        String   @id @default(cuid())
+  name      String   @unique // 英语、数学、物理...
+  slug      String   @unique // english、math、physics...
+  icon      String? // 图标名称（lucide-react）
+  color     String? // 主题色（hex）
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  cards      Card[]
+  categories Category[]
+  roadmaps   Roadmap[]
+
+  @@index([slug])
+}
+
+/// 分类表（支持层级结构）
+model Category {
+  id        String   @id @default(cuid())
+  name      String
+  subjectId String
+  parentId  String? // 父分类，支持多级
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  subject  Subject    @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree")
+  cards    Card[]
+
+  @@index([subjectId, parentId])
+}
+
+/// 标签表
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String? // 标签颜色（hex）
+  createdAt DateTime @default(now())
+
+  cards CardTag[]
+
+  @@index([name])
+}
+
+// ==================== 知识点卡片 ====================
+
+/// 知识点卡片表（核心实体）
+model Card {
+  id         String  @id @default(cuid())
+  title      String
+  content    String // 富文本内容（Tiptap JSON 字符串）
+  type       String // concept | word | phrase | grammar | problem | theorem | formula
+  subjectId  String?
+  categoryId String?
+  difficulty Int     @default(1) // 1-5 难度等级
+  status     String  @default("new") // new | learning | reviewing | mastered
+  source     String  @default("manual") // manual | ai | imported
+  metadata   String  @default("{}") // JSON 扩展字段
+
+  // 英语专属字段
+  phonetic       String? // 音标
+  partOfSpeech   String? // 词性
+  meanings       String? @default("[]") // JSON 数组：释义列表（支持多释义）
+  sentences      String? @default("[]") // JSON 数组：例句列表（支持 {en, zh, meaning} 格式）
+  /// 相关单词（释义相关的单词标题列表）
+  relatedWords   String? @default("[]") // JSON 数组：相关单词
+  /// 同义词
+  synonyms       String? @default("[]") // JSON 数组：同义词
+  /// 反义词
+  antonyms       String? @default("[]") // JSON 数组：反义词
+  /// 词根/词缀/词源
+  wordRoot       String? // 词根信息（如 "spect=看"）
+  /// 常见搭配
+  collocations   String? @default("[]") // JSON 数组：搭配短语
+
+  // 数学专属字段
+  problemStatement String? // 题目描述（含 LaTeX）
+  solution         String? // 解题过程（含 LaTeX）
+  latexFormulas    String? @default("[]") // JSON 数组：公式列表
+  answer           String? // 最终答案
+
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // 关联
+  user          User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  subject       Subject?         @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  category      Category?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  tags          CardTag[]
+  favorites     CardFavorite[]
+  notes         CardNote[]
+  studyLogs     StudyLog[]
+  reviews       ReviewSchedule[]
+  relationsFrom CardRelation[]   @relation("CardRelationFrom")
+  relationsTo   CardRelation[]   @relation("CardRelationTo")
+  roadmapNodes  RoadmapNode[]
+  conversations AIConversation[]
+
+  // 单词学习系统反向关联（向后兼容，不影响现有功能）
+  wordProfile       WordProfile?
+  modeHistories     ModeHistory[]
+  importLayouts     ImportLayout[]
+  wordRelationsFrom WordRelation[] @relation("WordRelFrom")
+  wordRelationsTo   WordRelation[] @relation("WordRelTo")
+
+  @@index([type, status])
+  @@index([subjectId, categoryId])
+  @@index([source])
+  @@index([userId])
+}
+
+/// 卡片-标签关联表
+model CardTag {
+  cardId String
+  tagId  String
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, tagId])
+  @@index([tagId])
+}
+
+// ==================== 卡片关联与路线图 ====================
+
+/// 卡片关联关系（构建知识图谱）
+model CardRelation {
+  id          String  @id @default(cuid())
+  fromCardId  String
+  toCardId    String
+  type        String // prerequisite | related | extends | example | application
+  description String?
+
+  fromCard Card @relation("CardRelationFrom", fields: [fromCardId], references: [id], onDelete: Cascade)
+  toCard   Card @relation("CardRelationTo", fields: [toCardId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCardId, toCardId, type])
+  @@index([toCardId])
+}
+
+/// 学习路线图
+model Roadmap {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  subjectId   String?
+  isPublic    Boolean  @default(false)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subject Subject?      @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodes   RoadmapNode[]
+  edges   RoadmapEdge[]
+
+  @@index([userId, isPublic])
+}
+
+/// 路线图节点
+model RoadmapNode {
+  id        String @id @default(cuid())
+  roadmapId String
+  cardId    String
+  order     Int    @default(0)
+  layer     Int    @default(0) // 层级（用于布局）
+  positionX Float  @default(0) // 自定义位置 X
+  positionY Float  @default(0) // 自定义位置 Y
+
+  roadmap   Roadmap       @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  card      Card          @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  edgesFrom RoadmapEdge[] @relation("RoadmapEdgeFrom")
+  edgesTo   RoadmapEdge[] @relation("RoadmapEdgeTo")
+
+  @@index([roadmapId, order])
+}
+
+/// 路线图边（节点间连接）
+model RoadmapEdge {
+  id         String  @id @default(cuid())
+  roadmapId  String
+  fromNodeId String
+  toNodeId   String
+  label      String? // 边标签（如"学习顺序"、"延伸"）
+
+  roadmap  Roadmap     @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  fromNode RoadmapNode @relation("RoadmapEdgeFrom", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode   RoadmapNode @relation("RoadmapEdgeTo", fields: [toNodeId], references: [id], onDelete: Cascade)
+
+  @@index([roadmapId])
+}
+
+// ==================== 学习记录与进度 ====================
+
+/// 学习记录（每次学习行为）
+model StudyLog {
+  id         String   @id @default(cuid())
+  userId     String
+  cardId     String
+  action     String // view | review | answer | create | edit
+  correct    Boolean? // 答题是否正确
+  durationMs Int      @default(0) // 学习时长（毫秒）
+  note       String? // 备注
+  // 单词学习系统扩展：考查方式与响应时长
+  modeId     Int? // 考查方式编号：1=缺失单词句子 2=缺失字母拼写 3=看释义拼写 4=ABCD选择
+  responseMs Int      @default(0) // 答题响应时长（毫秒）
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([cardId])
+  @@index([modeId])
+}
+
+/// 复习计划（SM-2 间隔重复算法）
+model ReviewSchedule {
+  id           String    @id @default(cuid())
+  userId       String
+  cardId       String
+  nextReviewAt DateTime
+  interval     Int       @default(1) // 间隔天数
+  easeFactor   Float     @default(2.5) // 难度系数
+  repetitions  Int       @default(0) // 已复习次数
+  lastReviewAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+  @@index([userId, nextReviewAt])
+}
+
+/// 用户进度（按学科统计）
+model UserProgress {
+  id            String    @id @default(cuid())
+  userId        String
+  subjectId     String?
+  cardsTotal    Int       @default(0)
+  cardsLearned  Int       @default(0)
+  cardsMastered Int       @default(0)
+  streakDays    Int       @default(0) // 连续学习天数
+  lastStudyAt   DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subjectId])
+  @@index([userId])
+}
+
+// ==================== 收藏与笔记 ====================
+
+/// 卡片收藏
+model CardFavorite {
+  userId    String
+  cardId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@id([userId, cardId])
+  @@index([cardId])
+}
+
+/// 用户笔记（针对卡片的个人注解）
+model CardNote {
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String
+  content   String // 笔记内容（Tiptap JSON 或纯文本）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([cardId])
+}
+
+// ==================== AI 交互记录 ====================
+
+/// AI 对话会话
+model AIConversation {
+  id        String   @id @default(cuid())
+  userId    String
+  cardId    String?
+  type      String // card_generate | math_solve | extend_explore | path_recommend | general
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card     Card?       @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  messages AIMessage[]
+
+  @@index([userId, type, createdAt])
+}
+
+/// AI 消息记录
+model AIMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String // user | assistant | system
+  content        String
+  tokens         Int      @default(0)
+  metadata       String   @default("{}") // JSON：模型、耗时等
+  createdAt      DateTime @default(now())
+
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+// ==================== 提醒与分享 ====================
+
+/// 学习提醒
+model Reminder {
+  id        String   @id @default(cuid())
+  userId    String
+  time      String // HH:mm 格式
+  enabled   Boolean  @default(true)
+  channel   String   @default("web") // web | email
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, enabled])
+}
+
+/// 分享链接
+model ShareLink {
+  id        String    @id @default(cuid())
+  userId    String
+  cardId    String?
+  roadmapId String?
+  token     String    @unique
+  expiresAt DateTime?
+  viewCount Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+// ==================== 单词学习系统 ====================
+// 详见 .doc/WORD_LEARNING_DESIGN.md
+// 设计原则：原始数据不可变 · 特征联动 · 算法可解释 · 后台不阻塞
+
+/// 单词学习画像（与 Card 1:1，type=word/phrase 才创建）
+/// 维护原子属性、时序行为属性、遗忘曲线参数、关联集（数学化表达）
+model WordProfile {
+  id     String @id @default(cuid())
+  cardId String @unique
+
+  // —— 原子属性 ——
+  length      Int // 单词字母长度（冗余存储，加速查询）
+  commonness  Float @default(0.5) // 常见程度 0-1（高频易错→关键常见词）
+  gaokaoCount Int   @default(0) // 高考出现次数
+
+  // —— 时序行为属性 ——
+  lastStudyTime  DateTime? // 最近学习时间（毫秒精度，由 FeatureEngine 写入）
+  studyCount     Int       @default(0) // 总学习次数
+  studyFrequency Float     @default(0) // 综合学习频率（日均+7日滑窗），影响间隔弹性
+  avgResponseMs  Int       @default(0) // 平均响应时长（近 20 次）
+  errorProneness Float     @default(0.5) // 易错度 0-1（加权滑动平均：错误率+遗忘+响应）
+  difficulty     Float     @default(0.5) // 难度潜变量 0-1（首次正确率+响应+易错度拟合）
+  lastResult     Boolean? // 最近一次是否正确（即时强化决策）
+  currentStreak  Int       @default(0) // 当前连续正确
+  maxStreak      Int       @default(0) // 最长连续正确
+
+  // —— 遗忘曲线参数（SM-2 变体，频率弹性）——
+  easinessFactor Float     @default(2.5) // 简易度因子
+  intervalDays   Int       @default(0) // 当前计划间隔（天）
+  repetitions    Int       @default(0) // 连续正确次数
+  nextReviewAt   DateTime? // 下次复习建议时间
+
+  // —— 关联集（数学化表达，非简单列表）——
+  /// JSON: { dim: number[], neighbors: [{id, weight, type}], version, updatedAt }
+  /// dim 为降维嵌入向量；neighbors 为稀疏邻接 Top-K
+  correlationVector String @default("{}")
+  /// 调试快照（预留，开发工具解析用，目前仅写 lastRecalc）
+  debugSnapshot     String @default("{}")
+
+  // —— 元数据 ——
+  lastRecalcAt DateTime? // 特征最后重算时间
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([nextReviewAt])
+  @@index([errorProneness])
+  @@index([studyCount])
+}
+
+/// 考查方式历史（每次学习的 mode_id + 结果，支撑考查方式选择算法）
+model ModeHistory {
+  id         String   @id @default(cuid())
+  cardId     String
+  userId     String
+  modeId     Int // 1=缺失单词句子 2=缺失字母拼写 3=看释义拼写 4=ABCD选择 5=听写(预留)
+  isCorrect  Boolean
+  responseMs Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, modeId])
+  @@index([userId, createdAt])
+}
+
+// ==================== 软相关性：原始导入布局（禁止删除）====================
+
+/// 导入数据包（完整保留原始组织结构，作为软相关性基础）
+model ImportPack {
+  id          String   @id @default(cuid())
+  name        String // 数据包名（如 SZFL-HZ-1）
+  description String?
+  packType    String // words_pack | sentence_pack | compound_pack
+  uuid        String? // 原始 UUID
+  sourcePath  String? // 原始路径（便于追溯）
+  /// pack.json 原始配置完整保存（禁止删除，便于重建）
+  rawConfig   String   @default("{}")
+  fileCount   Int      @default(0)
+  wordCount   Int      @default(0)
+  importedAt  DateTime @default(now())
+
+  layouts ImportLayout[]
+
+  @@index([name])
+}
+
+/// 原始布局节点（单元/课时/主题/词频阶梯/试卷分类）
+/// 层级：pack → file(单元) → item(单词位置)
+/// 关键约束：rawItem 永久保存，卡片删除时仅 cardId 置空，布局记录保留
+model ImportLayout {
+  id            String  @id @default(cuid())
+  packId        String
+  cardId        String? // 对应的 Card（删除时 SetNull，布局保留）
+  fileName      String // 原始文件名（如 1.json = 单元1）
+  fileType      String // word | phrase
+  itemOrder     Int // 在原文件中的顺序
+  itemUuid      String? // 原始 item uuid
+  /// 层级标签 JSON：["单元1","课时A","高频词"] 等，支持多维分类
+  hierarchyTags String  @default("[]")
+  /// 原始 item 完整快照（禁止删除，便于追溯与重建）
+  rawItem       String  @default("{}")
+
+  pack ImportPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+  card Card?      @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@index([packId, fileName])
+  @@index([cardId])
+  @@index([hierarchyTags])
+}
+
+// ==================== 硬相关性：数学化关联图 ====================
+
+/// 单词间硬相关关系（带类型与权重，由 AI/共现/结构/行为产生）
+/// 子类：ai_semantic | cooccurrence | structural | behavioral | soft_layout
+model WordRelation {
+  id         String   @id @default(cuid())
+  fromCardId String
+  toCardId   String
+  type       String // ai_semantic | cooccurrence | structural | behavioral | soft_layout
+  weight     Float // 0-1 相关度
+  /// 证据 JSON：{ pmi: 0.8, sharedPrefix: "pre", aiScore: 0.7, ... }
+  evidence   String   @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  fromCard Card @relation("WordRelFrom", fields: [fromCardId], references: [id], onDelete: Cascade)
+  toCard   Card @relation("WordRelTo", fields: [toCardId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCardId, toCardId, type])
+  @@index([fromCardId, type])
+  @@index([toCardId])
+}
+
+// ==================== 向量知识库（RAG）====================
+
+/// 知识库文档（导入的原始文档/文件）
+model KnowledgeDoc {
+  id        String   @id @default(cuid())
+  title     String // 文档标题
+  source    String // 来源：file_upload | manual | ai_generated
+  fileType  String  @default("text") // text | markdown | pdf | json
+  /// 原始内容（或文件路径）
+  content   String // 原始文本内容
+  /// 处理状态：pending | processing | ready | failed
+  status    String  @default("pending")
+  /// 分块数量
+  chunkCount Int    @default(0)
+  /// 元数据 JSON：{ fileSize, encoding, tags, ... }
+  metadata  String  @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chunks VectorChunk[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// 知识库向量分块（文档切片后的嵌入向量）
+model VectorChunk {
+  id         String   @id @default(cuid())
+  docId      String // 所属文档
+  /// 分块序号
+  chunkIndex Int
+  /// 分块文本内容
+  text       String
+  /// 嵌入向量 JSON 数组（如 1536 维 float）
+  embedding  String  @default("[]")
+  /// 向量维度
+  dimensions Int     @default(0)
+  /// 使用的嵌入模型标识
+  model      String  @default("")
+  /// token 数量（估算）
+  tokenCount Int     @default(0)
+  createdAt  DateTime @default(now())
+
+  doc KnowledgeDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  @@index([docId])
+  @@index([model])
+}
+
+// ==================== AI 配置与项目记忆 ====================
+
+/// AI 服务配置（全局参数）
+/// 单行配置表（id 固定为 "default"）
+///
+/// 重构说明（2026-07-28）：
+/// - 模型配置已迁移到 AIModelConfig 表（支持多模型/多Key/多BaseURL）
+/// - 任务绑定已迁移到 AITaskBinding 表（各项工作引用已配置的模型）
+/// - 本表仅保留全局参数（temperature/maxTokens/ragEnabled/ragTopK）
+/// - 旧字段（activeProvider/apiKey/apiUrl/chatModel/embeddingModel/embeddingDims/apiKeys/currentKeyIdx）
+///   保留但标记为废弃，仅供向后兼容，新代码不应使用
+model AISettings {
+  id             String  @id @default("default")
+  /// [废弃] 当前激活的 AI 提供商，已迁移到 AIModelConfig + AITaskBinding
+  activeProvider String  @default("openai") // openai | anthropic | deepseek | local
+  /// [废弃] API Key，已迁移到 AIModelConfig.apiKey
+  apiKey         String  @default("")
+  /// [废弃] API Base URL，已迁移到 AIModelConfig.apiUrl
+  apiUrl         String  @default("")
+  /// [废弃] 聊天模型，已迁移到 AIModelConfig.modelName
+  chatModel      String  @default("gpt-4o-mini")
+  /// [废弃] 嵌入模型，已迁移到 AIModelConfig.modelName
+  embeddingModel String  @default("text-embedding-3-small")
+  /// [废弃] 嵌入维度，已迁移到 AIModelConfig.metadata.dims
+  embeddingDims  Int     @default(1536)
+  /// [废弃] 多 API Key 轮换池，已迁移到多 AIModelConfig 配置项
+  apiKeys        String  @default("[]") // JSON: [{key, label, usage, limit, exhausted}]
+  /// [废弃] 当前使用的 Key 索引
+  currentKeyIdx  Int     @default(0)
+  /// 温度（全局参数，保留）
+  temperature    Float   @default(0.7)
+  /// 最大 token（全局参数，保留）
+  maxTokens      Int     @default(2048)
+  /// 是否启用向量检索增强（全局参数，保留）
+  ragEnabled     Boolean @default(false)
+  /// 检索 Top-K（全局参数，保留）
+  ragTopK        Int     @default(5)
+  updatedAt      DateTime @updatedAt
+}
+
+/// AI 模型配置项（多模型/多APIKey/多BaseURL）
+///
+/// 每个配置项代表一个可用的模型实例，包含：
+///   - 大类（category）：language | embedding | voice | image | other
+///   - 提供商（provider）：openai | anthropic | deepseek | local | custom
+///   - 模型名（modelName）：如 gpt-4o-mini
+///   - 凭据（apiKey + apiUrl）：支持 ${ENV_VAR} 和 file:// 语法
+///
+/// 任务通过 AITaskBinding 引用本表配置项
+model AIModelConfig {
+  id         String   @id @default(cuid())
+  /// 用户友好名称（如 "OpenAI GPT-4o"、"本地 Embedding"）
+  name       String
+  /// 大类：language | embedding | voice | image | other
+  category   String
+  /// 提供商：openai | anthropic | deepseek | local | custom
+  provider   String
+  /// 模型标识（如 "gpt-4o-mini"、"text-embedding-3-small"）
+  modelName  String
+  /// API Key（支持 ${ENV_VAR} 和 file:// 语法，由 env-resolver 解析）
+  apiKey     String   @default("")
+  /// API Base URL（支持 ${ENV_VAR} 语法）
+  apiUrl     String   @default("")
+  /// 是否启用（禁用的配置项不出现在任务绑定下拉中）
+  isActive   Boolean  @default(true)
+  /// 排序权重（越小越靠前）
+  order      Int      @default(0)
+  /// JSON 扩展字段：如 { dims: 1536, voiceId: "alloy", ... }
+  metadata   String   @default("{}")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  /// 任务绑定（作为主模型）
+  taskBindingsPrimary  AITaskBinding[] @relation("PrimaryModel")
+  /// 任务绑定（作为备用模型）
+  taskBindingsFallback AITaskBinding[] @relation("FallbackModel")
+
+  @@index([category, isActive])
+  @@index([provider])
+}
+
+/// AI 任务绑定（各项工作引用已配置的模型）
+///
+/// 每个 taskType 对应一种工作任务：
+///   - chat: AI 对话/问答
+///   - embedding: 向量嵌入
+///   - tts: 语音合成
+///   - stt: 语音识别
+///   - image_gen: 图片生成
+///   - image_recognize: 图片识别
+///
+/// 主模型失败时自动回退到备用模型
+model AITaskBinding {
+  id              String   @id @default(cuid())
+  /// 任务类型（唯一，每个任务类型仅一条绑定）
+  taskType        String   @unique
+  /// 主模型 ID
+  primaryModelId  String
+  /// 备用模型 ID（可选，主模型失败时回退）
+  fallbackModelId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  primaryModel  AIModelConfig  @relation("PrimaryModel", fields: [primaryModelId], references: [id], onDelete: Cascade)
+  fallbackModel AIModelConfig? @relation("FallbackModel", fields: [fallbackModelId], references: [id], onDelete: SetNull)
+
+  @@index([taskType])
+}
+
+/// 项目记忆条目（AI 问答页面的持久化上下文）
+///
+/// 存储优化说明：
+/// - scope/moduleId 用于按模块分组检索，避免全表扫描
+/// - lastUsedAt 支持 LRU 策略，长期未用的记忆可降权
+/// - autoRefresh 标识系统自动生成的记忆，每次调用聚合服务时刷新
+/// - 配合 lib/ai/memory-cache.ts 的内存缓存层，减少数据库查询
+model ProjectMemory {
+  id        String   @id @default(cuid())
+  /// 记忆类型：fact | preference | context | summary
+  type      String   @default("context")
+  /// 记忆标题（简短描述）
+  title     String
+  /// 记忆内容（详细文本）
+  content   String
+  /// 重要性 0-1（越高越优先注入上下文）
+  priority  Float    @default(0.5)
+  /// 是否激活
+  active    Boolean  @default(true)
+  /// 来源：manual | ai_extracted | system | system_auto
+  /// - manual: 用户手动添加
+  /// - ai_extracted: AI 从对话中提取
+  /// - system: 系统保留（旧数据兼容）
+  /// - system_auto: 系统自动从各模块聚合生成（可被聚合服务覆盖更新）
+  source    String   @default("manual")
+  /// 作用域：global | stats | canvas | english | learn | qa
+  /// - global: 全局通用记忆
+  /// - stats/canvas/english/learn/qa: 各模块专属记忆
+  /// AI 问答时按 scope 分组注入，便于按模块组织上下文
+  scope     String   @default("global")
+  /// 具体模块标识（预留，用于更细粒度的分类，如 "stats:overview"、"learn:weak-words"）
+  moduleId  String?
+  /// 是否自动刷新（system_auto 类型的记忆设为 true，每次聚合时重新生成）
+  autoRefresh Boolean @default(false)
+  /// 最近使用时间（用于 LRU 排序与过期清理）
+  lastUsedAt DateTime @default(now())
+  /// 关联标签 JSON（用于分类检索）
+  tags      String   @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, priority])
+  @@index([type])
+  @@index([scope, active])
+  @@index([source, autoRefresh])
+}
+
+/// AI 问答会话记录（支持多轮对话与项目记忆注入）
+model QAConversation {
+  id        String   @id @default(cuid())
+  title     String   @default("新对话")
+  /// 关联的项目记忆快照 JSON（对话开始时注入的记忆列表）
+  memorySnapshot String @default("[]")
+  /// 消息总数
+  messageCount Int   @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages QAMessage[]
+
+  @@index([updatedAt])
+}
+
+/// AI 问答消息
+model QAMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  role           String // user | assistant | system
+  content        String
+  /// 检索增强上下文 JSON（RAG 引用的知识分块 ID 列表）
+  ragContext     String   @default("[]")
+  /// 注入的项目记忆 ID 列表 JSON
+  memoryUsed     String   @default("[]")
+  tokens         Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  conversation QAConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}

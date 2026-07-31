@@ -1,0 +1,2449 @@
+{
+  "SZFL-Hz-1": {
+    "name": "SZFL-HZ-1",
+    "description": "深圳外国语高中园弘知高中英语单词包-第一弹",
+    "type": "words_pack",
+    "config": {
+      "information": {
+        "name": "SZFL-HZ-1",
+        "description": "深圳外国语高中园弘知高中英语单词包-第一弹",
+        "uuid": "",
+        "type": "words_pack"
+      },
+      "structure": {
+        "entrance": "data",
+        "key_map": {
+          "word": "words",
+          "type": "words.type",
+          "mean": "words.mean",
+          "sentence": "words.sentence"
+        }
+      },
+      "type_map": {
+        "noun": [
+          "名词",
+          "n."
+        ],
+        "verb": [
+          "动词",
+          "v."
+        ],
+        "adjective": [
+          "形容词",
+          "adj.",
+          "a."
+        ],
+        "adverb": [
+          "副词",
+          "adv.",
+          "ad."
+        ],
+        "preposition": [
+          "介词",
+          "prep."
+        ],
+        "conjunction": [
+          "连词",
+          "conj."
+        ]
+      }
+    },
+    "data": [
+      {
+        "filename": "1.json",
+        "words": [
+          {
+            "name": "alarm",
+            "type": "noun",
+            "mean": [
+              "警报"
+            ],
+            "sentence": [
+              "The fire alarm went off."
+            ]
+          },
+          {
+            "name": "alarm",
+            "type": "verb",
+            "mean": [
+              "使惊恐",
+              "使害怕",
+              "警告"
+            ],
+            "sentence": [
+              "The noise alarmed the neighbors."
+            ]
+          },
+          {
+            "name": "authority",
+            "type": "noun",
+            "mean": [
+              "官方",
+              "当权",
+              "权威"
+            ],
+            "sentence": [
+              "The authority approved the plan."
+            ]
+          },
+          {
+            "name": "capacity",
+            "type": "noun",
+            "mean": [
+              "容量",
+              "能力"
+            ],
+            "sentence": [
+              "The room has a large capacity."
+            ]
+          },
+          {
+            "name": "concise",
+            "type": "adjective",
+            "mean": [
+              "精简的"
+            ],
+            "sentence": [
+              "Her writing is concise."
+            ]
+          },
+          {
+            "name": "eastablish",
+            "type": "verb",
+            "mean": [
+              "建立"
+            ],
+            "sentence": [
+              "They want to establish a company."
+            ]
+          },
+          {
+            "name": "ecology",
+            "type": "noun",
+            "mean": [
+              "生态"
+            ],
+            "sentence": [
+              "Ecology is important for our planet."
+            ]
+          },
+          {
+            "name": "encountered",
+            "type": "verb",
+            "mean": [
+              "遇到",
+              "遭遇"
+            ],
+            "sentence": [
+              "I encountered an old friend."
+            ]
+          },
+          {
+            "name": "extinct",
+            "type": "adjective",
+            "mean": [
+              "灭绝的"
+            ],
+            "sentence": [
+              "Dinosaurs are extinct."
+            ]
+          },
+          {
+            "name": "extinction",
+            "type": "noun",
+            "mean": [
+              "灭绝"
+            ],
+            "sentence": [
+              "We must prevent species extinction."
+            ]
+          },
+          {
+            "name": "frequent",
+            "type": "adjective",
+            "mean": [
+              "频繁的"
+            ],
+            "sentence": [
+              "He makes frequent visits."
+            ]
+          },
+          {
+            "name": "frequently",
+            "type": "adverb",
+            "mean": [
+              "频繁地"
+            ],
+            "sentence": [
+              "She visits frequently."
+            ]
+          },
+          {
+            "name": "frequency",
+            "type": "noun",
+            "mean": [
+              "频繁"
+            ],
+            "sentence": [
+              "The frequency of earthquakes increased."
+            ]
+          },
+          {
+            "name": "gear",
+            "type": "noun",
+            "mean": [
+              "齿轮",
+              "装备"
+            ],
+            "sentence": [
+              "We need camping gear."
+            ]
+          },
+          {
+            "name": "illegal",
+            "type": "adjective",
+            "mean": [
+              "不合法的",
+              "非法的"
+            ],
+            "sentence": [
+              "This is an illegal activity."
+            ]
+          },
+          {
+            "name": "illegally",
+            "type": "adverb",
+            "mean": [
+              "不合法地",
+              "非法地"
+            ],
+            "sentence": [
+              "He acted illegally."
+            ]
+          },
+          {
+            "name": "mass",
+            "type": "adjective",
+            "mean": [
+              "大量的",
+              "广泛的"
+            ],
+            "sentence": [
+              "There was a mass protest."
+            ]
+          },
+          {
+            "name": "mass",
+            "type": "noun",
+            "mean": [
+              "大量"
+            ],
+            "sentence": [
+              "A mass of people gathered."
+            ]
+          },
+          {
+            "name": "measure",
+            "type": "noun",
+            "mean": [
+              "措施",
+              "方法"
+            ],
+            "sentence": [
+              "We need to take measures."
+            ]
+          },
+          {
+            "name": "measure",
+            "type": "verb",
+            "mean": [
+              "测量",
+              "度量"
+            ],
+            "sentence": [
+              "Please measure the length."
+            ]
+          },
+          {
+            "name": "muscle",
+            "type": "noun",
+            "mean": [
+              "肌肉"
+            ],
+            "sentence": [
+              "Exercise builds muscle."
+            ]
+          },
+          {
+            "name": "navigate",
+            "type": "verb",
+            "mean": [
+              "处理",
+              "解决"
+            ],
+            "sentence": [
+              "We need to navigate this problem."
+            ]
+          },
+          {
+            "name": "persevere",
+            "type": "verb",
+            "mean": [
+              "坚持"
+            ],
+            "sentence": [
+              "We must persevere through difficulties."
+            ]
+          },
+          {
+            "name": "perseverance",
+            "type": "noun",
+            "mean": [
+              "坚持不懈"
+            ],
+            "sentence": [
+              "Perseverance is the key to achieving one's goals."
+            ]
+          },
+          {
+            "name": "persevering",
+            "type": "adjective",
+            "mean": [
+              "坚持不懈的"
+            ],
+            "sentence": [
+              "His persevering attitude led to success."
+            ]
+          },
+          {
+            "name": "persistent",
+            "type": "adjective",
+            "mean": [
+              "持久的",
+              "坚持的"
+            ],
+            "sentence": [
+              "She is very persistent."
+            ]
+          },
+          {
+            "name": "plain",
+            "type": "noun",
+            "mean": [
+              "平原"
+            ],
+            "sentence": [
+              "The plain stretches for miles."
+            ]
+          },
+          {
+            "name": "plain",
+            "type": "adjective",
+            "mean": [
+              "简单明了的"
+            ],
+            "sentence": [
+              "She gave a plain explanation."
+            ]
+          },
+          {
+            "name": "potential",
+            "type": "noun",
+            "mean": [
+              "潜力"
+            ],
+            "sentence": [
+              "He has great potential."
+            ]
+          },
+          {
+            "name": "prevent",
+            "type": "verb",
+            "mean": [
+              "阻止",
+              "阻碍",
+              "阻挠"
+            ],
+            "sentence": [
+              "We must prevent accidents."
+            ]
+          },
+          {
+            "name": "seek",
+            "type": "verb",
+            "mean": [
+              "寻求"
+            ],
+            "sentence": [
+              "I seek your advice."
+            ]
+          },
+          {
+            "name": "session",
+            "type": "noun",
+            "mean": [
+              "会议",
+              "会话"
+            ],
+            "sentence": [
+              "The training session was helpful."
+            ]
+          },
+          {
+            "name": "shelter",
+            "type": "noun",
+            "mean": [
+              "庇护所"
+            ],
+            "sentence": [
+              "They found shelter from the rain."
+            ]
+          },
+          {
+            "name": "species",
+            "type": "noun",
+            "mean": [
+              "物种"
+            ],
+            "sentence": [
+              "This species is endangered."
+            ]
+          },
+          {
+            "name": "sweaty",
+            "type": "adjective",
+            "mean": [
+              "出汗的",
+              "多汗的"
+            ],
+            "sentence": [
+              "After running, I was sweaty."
+            ]
+          },
+          {
+            "name": "vivid",
+            "type": "adjective",
+            "mean": [
+              "生动的"
+            ],
+            "sentence": [
+              "She has vivid memories."
+            ]
+          },
+          {
+            "name": "generous",
+            "type": "adjective",
+            "mean": [
+              "慷慨的",
+              "大方的"
+            ],
+            "sentence": [
+              "He was generous with his time and resources."
+            ]
+          },
+          {
+            "name": "laboratory",
+            "type": "noun",
+            "mean": [
+              "实验室"
+            ],
+            "sentence": [
+              "The experiment was conducted in a laboratory."
+            ]
+          },
+          {
+            "name": "setback",
+            "type": "noun",
+            "mean": [
+              "挫折",
+              "阻碍"
+            ],
+            "sentence": [
+              "This setback was just a temporary problem."
+            ]
+          },
+          {
+            "name": "setback",
+            "type": "verb",
+            "mean": [
+              "使挫折",
+              "使倒退"
+            ],
+            "sentence": [
+              "The news setback their plans."
+            ]
+          },
+          {
+            "name": "consequence",
+            "type": "noun",
+            "mean": [
+              "结果",
+              "后果",
+              "重要性"
+            ],
+            "sentence": [
+              "The consequences of the decision were far-reaching."
+            ]
+          },
+          {
+            "name": "consequence",
+            "type": "adjective",
+            "mean": [
+              "后果的"
+            ],
+            "sentence": [
+              "He faced a consequence of his actions."
+            ]
+          }
+        ],
+        "count": 42
+      },
+      {
+        "filename": "2.json",
+        "words": [
+          {
+            "name": "proportion",
+            "type": "noun",
+            "mean": [
+              "比例",
+              "比率",
+              "占比"
+            ],
+            "sentence": [
+              "The proportion of students who passed the exam was high."
+            ]
+          },
+          {
+            "name": "proportional",
+            "type": "adjective",
+            "mean": [
+              "成比例的",
+              "相称的"
+            ],
+            "sentence": [
+              "The salary is proportional to the amount of work done."
+            ]
+          },
+          {
+            "name": "proportionally",
+            "type": "adverb",
+            "mean": [
+              "按比例地",
+              "相应地"
+            ],
+            "sentence": [
+              "The resources are distributed proportionally to the population."
+            ]
+          },
+          {
+            "name": "proportionate",
+            "type": "adjective",
+            "mean": [
+              "相称的",
+              "适当的"
+            ],
+            "sentence": [
+              "The punishment was proportionate to the offense."
+            ]
+          },
+          {
+            "name": "inspiration",
+            "type": "noun",
+            "mean": [
+              "灵感",
+              "启发",
+              "鼓舞"
+            ],
+            "sentence": [
+              "She found inspiration in nature for her artwork."
+            ]
+          },
+          {
+            "name": "inspirational",
+            "type": "adjective",
+            "mean": [
+              "启发灵感的",
+              "鼓舞人心的"
+            ],
+            "sentence": [
+              "The movie was very inspirational and motivated me to work harder."
+            ]
+          },
+          {
+            "name": "inspire",
+            "type": "verb",
+            "mean": [
+              "赋予灵感",
+              "鼓舞",
+              "激励"
+            ],
+            "sentence": [
+              "His dedication to his work inspires me."
+            ]
+          },
+          {
+            "name": "inspired",
+            "type": "adjective",
+            "mean": [
+              "受启发的",
+              "有灵感的"
+            ],
+            "sentence": [
+              "She felt inspired after attending the conference."
+            ]
+          },
+          {
+            "name": "enroll",
+            "type": "verb",
+            "mean": [
+              "注册",
+              "登记",
+              "加入"
+            ],
+            "sentence": [
+              "He decided to enroll in a computer science course."
+            ]
+          },
+          {
+            "name": "enrollment",
+            "type": "noun",
+            "mean": [
+              "注册",
+              "登记",
+              "注册人数"
+            ],
+            "sentence": [
+              "The university has seen a significant increase in enrollment this year."
+            ]
+          },
+          {
+            "name": "enroller",
+            "type": "noun",
+            "mean": [
+              "注册者",
+              "登记者"
+            ],
+            "sentence": [
+              "The enroller helped me complete the registration form."
+            ]
+          },
+          {
+            "name": "tone",
+            "type": "noun",
+            "mean": [
+              "语气",
+              "语调",
+              "腔调"
+            ],
+            "sentence": [
+              "The teacher spoke in a calm and reassuring tone."
+            ]
+          },
+          {
+            "name": "layout",
+            "type": "noun",
+            "mean": [
+              "布局",
+              "安排",
+              "设计"
+            ],
+            "sentence": [
+              "The layout of the new office is much more efficient."
+            ]
+          },
+          {
+            "name": "hurdle",
+            "type": "noun",
+            "mean": [
+              "难关",
+              "障碍",
+              "跨栏"
+            ],
+            "sentence": [
+              "Getting a visa was the biggest hurdle in our travel plans."
+            ]
+          },
+          {
+            "name": "concrete",
+            "type": "noun",
+            "mean": [
+              "混凝土"
+            ],
+            "sentence": [
+              "The sidewalk is made of concrete."
+            ]
+          },
+          {
+            "name": "problematic",
+            "type": "adjective",
+            "mean": [
+              "有问题的",
+              "麻烦的",
+              "成问题的"
+            ],
+            "sentence": [
+              "The situation is becoming increasingly problematic."
+            ]
+          },
+          {
+            "name": "groundbreaking",
+            "type": "adjective",
+            "mean": [
+              "开创性的",
+              "突破性的",
+              "创新的"
+            ],
+            "sentence": [
+              "The scientist made a groundbreaking discovery in the field of medicine."
+            ]
+          },
+          {
+            "name": "moral",
+            "type": "adjective",
+            "mean": [
+              "道德的",
+              "伦理的",
+              "有道德的"
+            ],
+            "sentence": [
+              "It's important to make moral decisions based on principles."
+            ]
+          },
+          {
+            "name": "vegetarian",
+            "type": "adjective",
+            "mean": [
+              "素食的",
+              "吃素的"
+            ],
+            "sentence": [
+              "She follows a vegetarian diet for health reasons."
+            ]
+          },
+          {
+            "name": "protagonist",
+            "type": "noun",
+            "mean": [
+              "主人公",
+              "主角",
+              "主要人物"
+            ],
+            "sentence": [
+              "The protagonist of the novel is a young detective."
+            ]
+          },
+          {
+            "name": "constantly",
+            "type": "adverb",
+            "mean": [
+              "一直地",
+              "不断地",
+              "经常地"
+            ],
+            "sentence": [
+              "The children are constantly asking questions."
+            ]
+          },
+          {
+            "name": "reveal",
+            "type": "verb",
+            "mean": [
+              "揭示",
+              "揭露",
+              "显示"
+            ],
+            "sentence": [
+              "The investigation revealed new evidence about the case."
+            ]
+          },
+          {
+            "name": "casually",
+            "type": "adverb",
+            "mean": [
+              "随便地",
+              "非正式地",
+              "偶然地"
+            ],
+            "sentence": [
+              "He casually mentioned that he was moving to a new city."
+            ]
+          },
+          {
+            "name": "dispense",
+            "type": "verb",
+            "mean": [
+              "分发",
+              "分配",
+              "配药"
+            ],
+            "sentence": [
+              "The charity will dispense food to the homeless."
+            ]
+          },
+          {
+            "name": "pace",
+            "type": "noun",
+            "mean": [
+              "节奏",
+              "速度",
+              "步伐"
+            ],
+            "sentence": [
+              "We need to set a steady pace to finish the project on time."
+            ]
+          },
+          {
+            "name": "sow",
+            "type": "verb",
+            "mean": [
+              "播下",
+              "播种",
+              "散布"
+            ],
+            "sentence": [
+              "Farmers sow seeds in the spring."
+            ]
+          },
+          {
+            "name": "consume",
+            "type": "verb",
+            "mean": [
+              "消费",
+              "消耗",
+              "吃"
+            ],
+            "sentence": [
+              "People consume more electricity during the summer months."
+            ]
+          },
+          {
+            "name": "consumer",
+            "type": "noun",
+            "mean": [
+              "消费者",
+              "用户",
+              "顾客"
+            ],
+            "sentence": [
+              "Consumer demand for organic products is increasing."
+            ]
+          },
+          {
+            "name": "disturb",
+            "type": "verb",
+            "mean": [
+              "干扰",
+              "打扰",
+              "扰乱"
+            ],
+            "sentence": [
+              "Please don't disturb me while I'm working."
+            ]
+          },
+          {
+            "name": "evaluate",
+            "type": "verb",
+            "mean": [
+              "评估",
+              "评价",
+              "估价"
+            ],
+            "sentence": [
+              "The teacher will evaluate the students' performance at the end of the term."
+            ]
+          }
+        ],
+        "count": 30
+      },
+      {
+        "filename": "3.json",
+        "words": [
+          {
+            "name": "foster",
+            "type": "verb",
+            "mean": [
+              "培养",
+              "促进",
+              "养育"
+            ],
+            "sentence": [
+              "The school aims to foster creativity in its students."
+            ]
+          },
+          {
+            "name": "issue",
+            "type": "verb",
+            "mean": [
+              "发布",
+              "发行",
+              "分发"
+            ],
+            "sentence": [
+              "The company will issue a statement regarding the incident."
+            ]
+          },
+          {
+            "name": "demonstrate",
+            "type": "verb",
+            "mean": [
+              "表明",
+              "证明",
+              "示范"
+            ],
+            "sentence": [
+              "The experiment demonstrates the law of gravity."
+            ]
+          },
+          {
+            "name": "emphasize",
+            "type": "verb",
+            "mean": [
+              "强调",
+              "着重",
+              "突出"
+            ],
+            "sentence": [
+              "The teacher emphasized the importance of studying for the exam."
+            ]
+          },
+          {
+            "name": "press",
+            "type": "verb",
+            "mean": [
+              "按",
+              "压"
+            ],
+            "sentence": [
+              "Please press the button to start the machine."
+            ]
+          },
+          {
+            "name": "press",
+            "type": "verb",
+            "mean": [
+              "催促",
+              "逼迫"
+            ],
+            "sentence": [
+              "The deadline is pressing, so we need to work quickly."
+            ]
+          },
+          {
+            "name": "access",
+            "type": "noun",
+            "mean": [
+              "通道",
+              "入口",
+              "机会"
+            ],
+            "sentence": [
+              "The building has wheelchair access for people with disabilities."
+            ]
+          },
+          {
+            "name": "access",
+            "type": "verb",
+            "mean": [
+              "进入",
+              "使用",
+              "获取"
+            ],
+            "sentence": [
+              "Students can access the library after school."
+            ]
+          },
+          {
+            "name": "expand",
+            "type": "verb",
+            "mean": [
+              "扩张",
+              "扩展",
+              "扩大",
+              "展开"
+            ],
+            "sentence": [
+              "The company plans to expand its operations into new markets."
+            ]
+          },
+          {
+            "name": "scent",
+            "type": "noun",
+            "mean": [
+              "气味",
+              "气息"
+            ],
+            "sentence": [
+              "The scent of fresh flowers filled the room."
+            ]
+          },
+          {
+            "name": "descendant",
+            "type": "noun",
+            "mean": [
+              "后裔",
+              "后代",
+              "子孙"
+            ],
+            "sentence": [
+              "He is a descendant of the ancient royal family."
+            ]
+          },
+          {
+            "name": "individual",
+            "type": "adjective",
+            "mean": [
+              "单独的",
+              "个人的",
+              "个体的"
+            ],
+            "sentence": [
+              "Each individual has unique talents and abilities."
+            ]
+          },
+          {
+            "name": "competence",
+            "type": "noun",
+            "mean": [
+              "能力",
+              "胜任",
+              "权限"
+            ],
+            "sentence": [
+              "The job requires a high level of technical competence."
+            ]
+          },
+          {
+            "name": "complex",
+            "type": "adjective",
+            "mean": [
+              "复杂的",
+              "难懂的",
+              "复合的"
+            ],
+            "sentence": [
+              "The project involves complex calculations and analysis."
+            ]
+          },
+          {
+            "name": "autonomous",
+            "type": "adjective",
+            "mean": [
+              "自主的",
+              "自治的"
+            ],
+            "sentence": [
+              "The region has been granted autonomous status by the government."
+            ]
+          },
+          {
+            "name": "autonomous",
+            "type": "adjective",
+            "mean": [
+              "独立的"
+            ],
+            "sentence": [
+              "The company operates as an autonomous entity within the group."
+            ]
+          },
+          {
+            "name": "intervention",
+            "type": "noun",
+            "mean": [
+              "干预",
+              "介入"
+            ],
+            "sentence": [
+              "The doctor's intervention saved the patient's life."
+            ]
+          },
+          {
+            "name": "intervention",
+            "type": "noun",
+            "mean": [
+              "干涉"
+            ],
+            "sentence": [
+              "The country condemned foreign intervention in its internal affairs."
+            ]
+          },
+          {
+            "name": "mansion",
+            "type": "noun",
+            "mean": [
+              "公馆",
+              "宅邸"
+            ],
+            "sentence": [
+              "The old mansion has been converted into a luxury hotel."
+            ]
+          },
+          {
+            "name": "logistics",
+            "type": "noun",
+            "mean": [
+              "物流"
+            ],
+            "sentence": [
+              "The company specializes in logistics and supply chain management."
+            ]
+          },
+          {
+            "name": "humble",
+            "type": "adjective",
+            "mean": [
+              "低下的",
+              "卑微的"
+            ],
+            "sentence": [
+              "He came from a humble background but worked hard to succeed."
+            ]
+          },
+          {
+            "name": "humble",
+            "type": "adjective",
+            "mean": [
+              "谦逊的",
+              "虚心的"
+            ],
+            "sentence": [
+              "Despite his success, he remained humble and grateful."
+            ]
+          },
+          {
+            "name": "humble",
+            "type": "adjective",
+            "mean": [
+              "简陋的",
+              "规模小的"
+            ],
+            "sentence": [
+              "They lived in a humble cottage in the countryside."
+            ]
+          },
+          {
+            "name": "mild",
+            "type": "adjective",
+            "mean": [
+              "轻微的",
+              "温和的"
+            ],
+            "sentence": [
+              "The weather is mild today, perfect for a walk."
+            ]
+          },
+          {
+            "name": "atmosphere",
+            "type": "noun",
+            "mean": [
+              "氛围"
+            ],
+            "sentence": [
+              "The atmosphere in the room was tense during the meeting."
+            ]
+          },
+          {
+            "name": "cultivate",
+            "type": "verb",
+            "mean": [
+              "培养",
+              "栽培",
+              "陶冶"
+            ],
+            "sentence": [
+              "It takes time to cultivate good relationships with colleagues."
+            ]
+          },
+          {
+            "name": "dispense",
+            "type": "verb",
+            "mean": [
+              "分发",
+              "分配",
+              "配药"
+            ],
+            "sentence": [
+              "The machine dispenses tickets automatically."
+            ]
+          },
+          {
+            "name": "equivalent",
+            "type": "noun",
+            "mean": [
+              "等量",
+              "等价物",
+              "对应物"
+            ],
+            "sentence": [
+              "One dollar is equivalent to about 7 yuan."
+            ]
+          },
+          {
+            "name": "alternative",
+            "type": "adjective",
+            "mean": [
+              "可选用的",
+              "替代的",
+              "备选的"
+            ],
+            "sentence": [
+              "We need to find an alternative solution to the problem."
+            ]
+          },
+          {
+            "name": "evaporate",
+            "type": "verb",
+            "mean": [
+              "蒸发",
+              "消失",
+              "挥发"
+            ],
+            "sentence": [
+              "The water will evaporate if left in the sun."
+            ]
+          },
+          {
+            "name": "constancy",
+            "type": "adjective",
+            "mean": [
+              "坚定不移的",
+              "恒定的",
+              "持久的"
+            ],
+            "sentence": [
+              "Her constancy in the face of difficulties is admirable."
+            ]
+          },
+          {
+            "name": "mysterious",
+            "type": "adjective",
+            "mean": [
+              "神秘莫测的",
+              "神秘的",
+              "难以理解的"
+            ],
+            "sentence": [
+              "He is a mysterious person with a unique ability."
+            ]
+          }
+        ],
+        "count": 32
+      },
+      {
+        "filename": "4.json",
+        "words": [
+          {
+            "name": "environment",
+            "type": "noun",
+            "mean": [
+              "环境",
+              "周围",
+              "自然环境"
+            ],
+            "sentence": [
+              "We need to protect the environment for future generations."
+            ]
+          },
+          {
+            "name": "climate",
+            "type": "noun",
+            "mean": [
+              "气候",
+              "氛围",
+              "风气"
+            ],
+            "sentence": [
+              "The climate in this region is very humid."
+            ]
+          },
+          {
+            "name": "weather",
+            "type": "noun",
+            "mean": [
+              "天气",
+              "气象",
+              "处境"
+            ],
+            "sentence": [
+              "The weather forecast says it will rain tomorrow."
+            ]
+          },
+          {
+            "name": "ambiance",
+            "type": "noun",
+            "mean": [
+              "氛围",
+              "环境",
+              "情调"
+            ],
+            "sentence": [
+              "The restaurant has a romantic ambiance."
+            ]
+          },
+          {
+            "name": "mood",
+            "type": "noun",
+            "mean": [
+              "情绪",
+              "心情",
+              "气氛"
+            ],
+            "sentence": [
+              "She was in a good mood after receiving the news."
+            ]
+          },
+          {
+            "name": "grow",
+            "type": "verb",
+            "mean": [
+              "生长",
+              "成长",
+              "增加"
+            ],
+            "sentence": [
+              "Plants grow better in sunlight."
+            ]
+          },
+          {
+            "name": "develop",
+            "type": "verb",
+            "mean": [
+              "发展",
+              "开发",
+              "形成"
+            ],
+            "sentence": [
+              "The company plans to develop new products next year."
+            ]
+          },
+          {
+            "name": "tend",
+            "type": "verb",
+            "mean": [
+              "照料",
+              "护理",
+              "倾向于"
+            ],
+            "sentence": [
+              "She tends to her garden every morning."
+            ]
+          },
+          {
+            "name": "distribute",
+            "type": "verb",
+            "mean": [
+              "分发",
+              "分配",
+              "散布"
+            ],
+            "sentence": [
+              "The teacher will distribute the textbooks to the students."
+            ]
+          },
+          {
+            "name": "provide",
+            "type": "verb",
+            "mean": [
+              "提供",
+              "供给",
+              "给予"
+            ],
+            "sentence": [
+              "The company provides health insurance for its employees."
+            ]
+          },
+          {
+            "name": "supply",
+            "type": "verb",
+            "mean": [
+              "供应",
+              "提供",
+              "补给"
+            ],
+            "sentence": [
+              "The store supplies fresh vegetables every day."
+            ]
+          },
+          {
+            "name": "equal",
+            "type": "adjective",
+            "mean": [
+              "相等的",
+              "平等的",
+              "胜任的"
+            ],
+            "sentence": [
+              "All people are created equal."
+            ]
+          },
+          {
+            "name": "similar",
+            "type": "adjective",
+            "mean": [
+              "相似的",
+              "类似的",
+              "近似的"
+            ],
+            "sentence": [
+              "The two cars look very similar."
+            ]
+          },
+          {
+            "name": "comparable",
+            "type": "adjective",
+            "mean": [
+              "可比较的",
+              "类似的",
+              "相当的"
+            ],
+            "sentence": [
+              "The quality of their products is comparable to ours."
+            ]
+          },
+          {
+            "name": "option",
+            "type": "noun",
+            "mean": [
+              "选项",
+              "选择",
+              "选择权"
+            ],
+            "sentence": [
+              "We have several options to choose from."
+            ]
+          },
+          {
+            "name": "choice",
+            "type": "noun",
+            "mean": [
+              "选择",
+              "挑选",
+              "抉择"
+            ],
+            "sentence": [
+              "It was a difficult choice, but I decided to take the job."
+            ]
+          },
+          {
+            "name": "substitute",
+            "type": "noun",
+            "mean": [
+              "替代品",
+              "代替者",
+              "代用品"
+            ],
+            "sentence": [
+              "We can use honey as a substitute for sugar."
+            ]
+          },
+          {
+            "name": "vaporize",
+            "type": "verb",
+            "mean": [
+              "蒸发",
+              "汽化",
+              "消失"
+            ],
+            "sentence": [
+              "The water will vaporize when heated."
+            ]
+          },
+          {
+            "name": "disappear",
+            "type": "verb",
+            "mean": [
+              "消失",
+              "不见",
+              "失踪"
+            ],
+            "sentence": [
+              "The sun disappeared behind the clouds."
+            ]
+          },
+          {
+            "name": "vanish",
+            "type": "verb",
+            "mean": [
+              "消失",
+              "突然不见",
+              "灭绝"
+            ],
+            "sentence": [
+              "The magician made the rabbit vanish."
+            ]
+          },
+          {
+            "name": "consistency",
+            "type": "noun",
+            "mean": [
+              "一致性",
+              "连贯性",
+              "浓度"
+            ],
+            "sentence": [
+              "The team needs to maintain consistency in their performance."
+            ]
+          },
+          {
+            "name": "stability",
+            "type": "noun",
+            "mean": [
+              "稳定性",
+              "稳固",
+              "坚定"
+            ],
+            "sentence": [
+              "The country is looking for political stability."
+            ]
+          },
+          {
+            "name": "reliability",
+            "type": "noun",
+            "mean": [
+              "可靠性",
+              "可信赖性",
+              "可信度"
+            ],
+            "sentence": [
+              "The reliability of the new system is impressive."
+            ]
+          },
+          {
+            "name": "strict",
+            "type": "adjective",
+            "mean": [
+              "严格的",
+              "严厉的",
+              "精确的"
+            ],
+            "sentence": [
+              "The teacher is very strict about homework."
+            ]
+          },
+          {
+            "name": "harsh",
+            "type": "adjective",
+            "mean": [
+              "严厉的",
+              "苛刻的",
+              "粗糙的"
+            ],
+            "sentence": [
+              "The harsh winter weather made it difficult to travel."
+            ]
+          },
+          {
+            "name": "tough",
+            "type": "adjective",
+            "mean": [
+              "艰难的",
+              "坚强的",
+              "坚韧的"
+            ],
+            "sentence": [
+              "The exam was very tough."
+            ]
+          },
+          {
+            "name": "beautiful",
+            "type": "adjective",
+            "mean": [
+              "美丽的",
+              "漂亮的",
+              "美好的"
+            ],
+            "sentence": [
+              "The sunset was beautiful."
+            ]
+          },
+          {
+            "name": "delicate",
+            "type": "adjective",
+            "mean": [
+              "精致的",
+              "脆弱的",
+              "微妙的"
+            ],
+            "sentence": [
+              "She handled the delicate glass carefully."
+            ]
+          },
+          {
+            "name": "elegant",
+            "type": "adjective",
+            "mean": [
+              "优雅的",
+              "精美的",
+              "简洁的"
+            ],
+            "sentence": [
+              "She wore an elegant dress to the party."
+            ]
+          },
+          {
+            "name": "energy",
+            "type": "noun",
+            "mean": [
+              "能量",
+              "精力",
+              "活力"
+            ],
+            "sentence": [
+              "The sun provides energy for all living things."
+            ]
+          }
+        ],
+        "count": 30
+      },
+      {
+        "filename": "5.json",
+        "words": [
+          {
+            "name": "power",
+            "type": "noun",
+            "mean": [
+              "力量",
+              "权力",
+              "动力"
+            ],
+            "sentence": [
+              "The wind provides power for the turbines."
+            ]
+          },
+          {
+            "name": "force",
+            "type": "noun",
+            "mean": [
+              "力量",
+              "武力",
+              "影响力"
+            ],
+            "sentence": [
+              "The force of the explosion shattered the windows."
+            ]
+          },
+          {
+            "name": "strength",
+            "type": "noun",
+            "mean": [
+              "力量",
+              "强度",
+              "实力"
+            ],
+            "sentence": [
+              "He built up his strength through regular exercise."
+            ]
+          },
+          {
+            "name": "light",
+            "type": "noun",
+            "mean": [
+              "光",
+              "光线",
+              "灯"
+            ],
+            "sentence": [
+              "The light from the lamp illuminated the room."
+            ]
+          },
+          {
+            "name": "flame",
+            "type": "noun",
+            "mean": [
+              "火焰",
+              "火苗",
+              "热情"
+            ],
+            "sentence": [
+              "The flame from the candle flickered in the breeze."
+            ]
+          },
+          {
+            "name": "fire",
+            "type": "noun",
+            "mean": [
+              "火",
+              "火灾",
+              "热情"
+            ],
+            "sentence": [
+              "The fire burned brightly in the fireplace."
+            ]
+          },
+          {
+            "name": "build",
+            "type": "verb",
+            "mean": [
+              "建造",
+              "构建",
+              "发展"
+            ],
+            "sentence": [
+              "They plan to build a new house next year."
+            ]
+          },
+          {
+            "name": "construct",
+            "type": "verb",
+            "mean": [
+              "建造",
+              "构造",
+              "组成"
+            ],
+            "sentence": [
+              "The workers are constructing a new bridge."
+            ]
+          },
+          {
+            "name": "assemble",
+            "type": "verb",
+            "mean": [
+              "组装",
+              "集合",
+              "聚集"
+            ],
+            "sentence": [
+              "The students assembled in the auditorium for the assembly."
+            ]
+          },
+          {
+            "name": "raise",
+            "type": "verb",
+            "mean": [
+              "养育",
+              "提高",
+              "筹集"
+            ],
+            "sentence": [
+              "Parents raise their children with love and care."
+            ]
+          },
+          {
+            "name": "rear",
+            "type": "verb",
+            "mean": [
+              "养育",
+              "饲养",
+              "培养"
+            ],
+            "sentence": [
+              "She reared three children on her own."
+            ]
+          },
+          {
+            "name": "educate",
+            "type": "verb",
+            "mean": [
+              "教育",
+              "培养",
+              "训练"
+            ],
+            "sentence": [
+              "The school aims to educate students to be responsible citizens."
+            ]
+          },
+          {
+            "name": "absorption",
+            "type": "noun",
+            "mean": [
+              "吸收",
+              "专注",
+              "合并"
+            ],
+            "sentence": [
+              "The absorption of water by the soil is important for plant growth."
+            ]
+          },
+          {
+            "name": "engagement",
+            "type": "noun",
+            "mean": [
+              "参与",
+              "订婚",
+              "婚约"
+            ],
+            "sentence": [
+              "Her engagement in community activities is impressive."
+            ]
+          },
+          {
+            "name": "involvement",
+            "type": "noun",
+            "mean": [
+              "参与",
+              "介入",
+              "投入"
+            ],
+            "sentence": [
+              "His involvement in the project was crucial to its success."
+            ]
+          },
+          {
+            "name": "relevant",
+            "type": "adjective",
+            "mean": [
+              "相关的",
+              "切题的",
+              "有意义的"
+            ],
+            "sentence": [
+              "The information provided is relevant to our discussion."
+            ]
+          },
+          {
+            "name": "related",
+            "type": "adjective",
+            "mean": [
+              "相关的",
+              "有关系的",
+              "亲戚的"
+            ],
+            "sentence": [
+              "The two events are closely related."
+            ]
+          },
+          {
+            "name": "connected",
+            "type": "adjective",
+            "mean": [
+              "连接的",
+              "相关的",
+              "有联系的"
+            ],
+            "sentence": [
+              "The two cities are connected by a highway."
+            ]
+          },
+          {
+            "name": "learn",
+            "type": "verb",
+            "mean": [
+              "学习",
+              "了解",
+              "得知"
+            ],
+            "sentence": [
+              "Children learn best through play."
+            ]
+          },
+          {
+            "name": "study",
+            "type": "verb",
+            "mean": [
+              "学习",
+              "研究",
+              "调查"
+            ],
+            "sentence": [
+              "She studies English every day."
+            ]
+          },
+          {
+            "name": "accomplish",
+            "type": "verb",
+            "mean": [
+              "完成",
+              "实现",
+              "达到"
+            ],
+            "sentence": [
+              "They worked hard to accomplish their goals."
+            ]
+          },
+          {
+            "name": "achieve",
+            "type": "verb",
+            "mean": [
+              "实现",
+              "达到",
+              "完成"
+            ],
+            "sentence": [
+              "She worked hard to achieve her dreams."
+            ]
+          },
+          {
+            "name": "succeed",
+            "type": "verb",
+            "mean": [
+              "成功",
+              "继承",
+              "兴旺"
+            ],
+            "sentence": [
+              "With hard work, you can succeed in anything."
+            ]
+          },
+          {
+            "name": "charming",
+            "type": "adjective",
+            "mean": [
+              "迷人的",
+              "有魅力的",
+              "可爱的"
+            ],
+            "sentence": [
+              "She has a charming personality."
+            ]
+          },
+          {
+            "name": "attractive",
+            "type": "adjective",
+            "mean": [
+              "吸引人的",
+              "有魅力的",
+              "引人注目的"
+            ],
+            "sentence": [
+              "The city has many attractive tourist spots."
+            ]
+          },
+          {
+            "name": "appealing",
+            "type": "adjective",
+            "mean": [
+              "吸引人的",
+              "有吸引力的",
+              "恳求的"
+            ],
+            "sentence": [
+              "The idea is very appealing to me."
+            ]
+          },
+          {
+            "name": "protect",
+            "type": "verb",
+            "mean": [
+              "保护",
+              "防卫",
+              "警戒"
+            ],
+            "sentence": [
+              "We need to protect the environment."
+            ]
+          },
+          {
+            "name": "defend",
+            "type": "verb",
+            "mean": [
+              "保卫",
+              "防御",
+              "辩护"
+            ],
+            "sentence": [
+              "The soldiers defend their country with their lives."
+            ]
+          },
+          {
+            "name": "shield",
+            "type": "verb",
+            "mean": [
+              "保护",
+              "遮蔽",
+              "屏蔽"
+            ],
+            "sentence": [
+              "The tree shielded us from the sun."
+            ]
+          },
+          {
+            "name": "familiar",
+            "type": "adjective",
+            "mean": [
+              "熟悉的",
+              "常见的",
+              "亲近的"
+            ],
+            "sentence": [
+              "This place looks familiar to me."
+            ]
+          },
+          {
+            "name": "common",
+            "type": "adjective",
+            "mean": [
+              "常见的",
+              "普通的",
+              "共同的"
+            ],
+            "sentence": [
+              "It's common for people to feel nervous before a speech."
+            ]
+          },
+          {
+            "name": "usual",
+            "type": "adjective",
+            "mean": [
+              "通常的",
+              "平常的",
+              "惯常的"
+            ],
+            "sentence": [
+              "He arrived at his usual time."
+            ]
+          }
+        ],
+        "count": 32
+      },
+      {
+        "filename": "6.json",
+        "words": [
+          {
+            "name": "severe",
+            "type": "adjective",
+            "mean": [
+              "严苛的",
+              "严厉的",
+              "严重的"
+            ],
+            "sentence": [
+              "The teacher was severe with students who didn't do their homework."
+            ]
+          },
+          {
+            "name": "exquisite",
+            "type": "adjective",
+            "mean": [
+              "精美的",
+              "精致的",
+              "细腻的"
+            ],
+            "sentence": [
+              "She wore an exquisite diamond necklace to the party."
+            ]
+          },
+          {
+            "name": "fuel",
+            "type": "verb",
+            "mean": [
+              "激发",
+              "加剧",
+              "提供燃料"
+            ],
+            "sentence": [
+              "The argument fueled tensions between the two countries."
+            ]
+          },
+          {
+            "name": "ignite",
+            "type": "verb",
+            "mean": [
+              "点燃",
+              "引发",
+              "激发"
+            ],
+            "sentence": [
+              "The dry grass ignited quickly in the hot sun."
+            ]
+          },
+          {
+            "name": "assemble",
+            "type": "verb",
+            "mean": [
+              "组装",
+              "集合",
+              "聚集"
+            ],
+            "sentence": [
+              "The workers assemble cars on the production line."
+            ]
+          },
+          {
+            "name": "nurture",
+            "type": "verb",
+            "mean": [
+              "培养",
+              "养育",
+              "培育"
+            ],
+            "sentence": [
+              "Parents should nurture their children's talents and interests."
+            ]
+          },
+          {
+            "name": "immersion",
+            "type": "noun",
+            "mean": [
+              "沉浸",
+              "浸入",
+              "专注"
+            ],
+            "sentence": [
+              "Language immersion programs help students learn faster."
+            ]
+          },
+          {
+            "name": "sustain",
+            "type": "verb",
+            "mean": [
+              "保持",
+              "维持",
+              "支撑"
+            ],
+            "sentence": [
+              "The company needs to find ways to sustain its growth."
+            ]
+          },
+          {
+            "name": "engage",
+            "type": "verb",
+            "mean": [
+              "参与",
+              "从事",
+              "吸引"
+            ],
+            "sentence": [
+              "Students should engage actively in class discussions."
+            ]
+          },
+          {
+            "name": "relative",
+            "type": "adjective",
+            "mean": [
+              "相对的",
+              "相关的",
+              "比较的"
+            ],
+            "sentence": [
+              "The cost of living is relative to the average income."
+            ]
+          },
+          {
+            "name": "associate",
+            "type": "adjective",
+            "mean": [
+              "联合的",
+              "相关的",
+              "副的"
+            ],
+            "sentence": [
+              "He works as an associate professor at the university."
+            ]
+          },
+          {
+            "name": "acquire",
+            "type": "verb",
+            "mean": [
+              "学习",
+              "获得",
+              "获取"
+            ],
+            "sentence": [
+              "It takes time to acquire a new language."
+            ]
+          },
+          {
+            "name": "spark",
+            "type": "noun",
+            "mean": [
+              "火花",
+              "火星",
+              "灵感"
+            ],
+            "sentence": [
+              "The spark from the fire ignited the dry leaves."
+            ]
+          },
+          {
+            "name": "enchanting",
+            "type": "adjective",
+            "mean": [
+              "迷人的",
+              "令人陶醉的",
+              "妩媚的"
+            ],
+            "sentence": [
+              "The view from the top of the mountain was enchanting."
+            ]
+          },
+          {
+            "name": "bless",
+            "type": "verb",
+            "mean": [
+              "保佑",
+              "祝福",
+              "赐福"
+            ],
+            "sentence": [
+              "May God bless you and your family."
+            ]
+          },
+          {
+            "name": "acquaint",
+            "type": "verb",
+            "mean": [
+              "使熟悉",
+              "使了解",
+              "介绍"
+            ],
+            "sentence": [
+              "Let me acquaint you with the new rules."
+            ]
+          },
+          {
+            "name": "domestic",
+            "type": "adjective",
+            "mean": [
+              "国内的",
+              "家庭的",
+              "驯养的"
+            ],
+            "sentence": [
+              "The company focuses on the domestic market."
+            ]
+          },
+          {
+            "name": "essential",
+            "type": "adjective",
+            "mean": [
+              "必要的",
+              "重要的",
+              "本质的"
+            ],
+            "sentence": [
+              "Water is essential for human life."
+            ]
+          },
+          {
+            "name": "anniversary",
+            "type": "noun",
+            "mean": [
+              "纪念日",
+              "周年纪念"
+            ],
+            "sentence": [
+              "They celebrated their 25th wedding anniversary last week."
+            ]
+          },
+          {
+            "name": "irregular",
+            "type": "adjective",
+            "mean": [
+              "不规律的",
+              "不规则的",
+              "不正常的"
+            ],
+            "sentence": [
+              "His work hours are irregular, making it hard to plan."
+            ]
+          }
+        ],
+        "count": 20
+      },
+      {
+        "filename": "7.json",
+        "words": [
+          {
+            "name": "showcase",
+            "type": "verb",
+            "mean": [
+              "展示",
+              "陈列",
+              "显示"
+            ],
+            "sentence": [
+              "The exhibition showcases the latest technology."
+            ]
+          },
+          {
+            "name": "ease",
+            "type": "verb",
+            "mean": [
+              "减轻",
+              "缓解",
+              "放松"
+            ],
+            "sentence": [
+              "The medicine helped ease his pain."
+            ]
+          },
+          {
+            "name": "present",
+            "type": "verb",
+            "mean": [
+              "出席",
+              "呈现",
+              "赠送"
+            ],
+            "sentence": [
+              "She will present her research at the conference."
+            ]
+          },
+          {
+            "name": "military",
+            "type": "adjective",
+            "mean": [
+              "军事的",
+              "军用的",
+              "军队的"
+            ],
+            "sentence": [
+              "The country has a strong military presence in the region."
+            ]
+          },
+          {
+            "name": "scarce",
+            "type": "adjective",
+            "mean": [
+              "缺乏的",
+              "不足的",
+              "稀少的"
+            ],
+            "sentence": [
+              "Water is scarce in the desert."
+            ]
+          },
+          {
+            "name": "master",
+            "type": "verb",
+            "mean": [
+              "掌握",
+              "精通",
+              "控制"
+            ],
+            "sentence": [
+              "It takes years to master a musical instrument."
+            ]
+          },
+          {
+            "name": "booth",
+            "type": "noun",
+            "mean": [
+              "摊位",
+              "展位",
+              "小间"
+            ],
+            "sentence": [
+              "They set up a booth at the trade fair."
+            ]
+          },
+          {
+            "name": "critically",
+            "type": "adverb",
+            "mean": [
+              "批判性地",
+              "关键地",
+              "严重地"
+            ],
+            "sentence": [
+              "We need to think critically about the information we receive."
+            ]
+          },
+          {
+            "name": "enlightening",
+            "type": "adjective",
+            "mean": [
+              "富有启发的",
+              "使人领悟的"
+            ],
+            "sentence": [
+              "The lecture was very enlightening and informative."
+            ]
+          },
+          {
+            "name": "absence",
+            "type": "noun",
+            "mean": [
+              "缺席",
+              "缺乏",
+              "不在"
+            ],
+            "sentence": [
+              "His absence from the meeting was noticed by everyone."
+            ]
+          },
+          {
+            "name": "vibrant",
+            "type": "adjective",
+            "mean": [
+              "充满活力的",
+              "鲜艳的",
+              "活跃的"
+            ],
+            "sentence": [
+              "The city has a vibrant cultural scene."
+            ]
+          },
+          {
+            "name": "chimney",
+            "type": "noun",
+            "mean": [
+              "烟囱"
+            ],
+            "sentence": [
+              "Smoke was coming out of the chimney."
+            ]
+          },
+          {
+            "name": "approach",
+            "type": "verb",
+            "mean": [
+              "靠近",
+              "接近"
+            ],
+            "sentence": [
+              "As we approach the city, the buildings get taller."
+            ]
+          },
+          {
+            "name": "approach",
+            "type": "verb",
+            "mean": [
+              "接洽",
+              "着手处理"
+            ],
+            "sentence": [
+              "Let's approach the problem from a different angle."
+            ]
+          },
+          {
+            "name": "approach",
+            "type": "noun",
+            "mean": [
+              "方法",
+              "途径"
+            ],
+            "sentence": [
+              "We need to find a better approach to this issue."
+            ]
+          },
+          {
+            "name": "approach",
+            "type": "noun",
+            "mean": [
+              "接近"
+            ],
+            "sentence": [
+              "The approach of winter brings colder weather."
+            ]
+          },
+          {
+            "name": "deserve",
+            "type": "verb",
+            "mean": [
+              "值得",
+              "应得"
+            ],
+            "sentence": [
+              "You deserve a reward for your hard work."
+            ]
+          },
+          {
+            "name": "prohibit",
+            "type": "verb",
+            "mean": [
+              "禁止",
+              "阻止",
+              "妨碍"
+            ],
+            "sentence": [
+              "The law prohibits smoking in public places."
+            ]
+          }
+        ],
+        "count": 18
+      }
+    ],
+    "word_count": 204,
+    "file_count": 7
+  }
+}
