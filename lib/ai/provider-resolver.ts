@@ -37,7 +37,7 @@ export async function resolveChatProvider(
       return {
         provider: new OpenAICompatProvider({
           apiKey: resolveValue(cfg.apiKey),
-          baseUrl: cfg.apiUrl || undefined,
+          baseUrl: resolveValue(cfg.apiUrl) || undefined,
           model: cfg.modelName,
         }),
         modelLabel: `${cfg.name} (${cfg.modelName})`,
@@ -55,7 +55,7 @@ export async function resolveChatProvider(
     return {
       provider: new OpenAICompatProvider({
         apiKey: resolveValue(m.apiKey),
-        baseUrl: m.apiUrl || undefined,
+        baseUrl: resolveValue(m.apiUrl) || undefined,
         model: m.modelName,
       }),
       modelLabel: `${m.name} (${m.modelName})`,
