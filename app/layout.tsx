@@ -42,6 +42,44 @@ const themeInitScript = `
 `;
 
 /**
+ * 本地访问令牌自动携带脚本
+ *
+ * 安全增强（与 middleware.ts 的 LOCAL_ACCESS_TOKEN 校验配合）：
+ *   - 页面加载时从 /api/local-token（仅 localhost 可访问）获取访问令牌
+ *   - 获取成功后拦截 window.fetch：对同源 /api/* 请求自动附加
+ *     x-local-token header，保证配置认证后页面功能不受影响
+ *   - 未配置令牌（接口 404）或获取失败时静默跳过，保持默认开放行为
+ *
+ * 注意：此脚本必须内联在 <head> 中，并在任何数据请求发起前执行。
+ */
+const localTokenScript = `
+(function() {
+  try {
+    fetch('/api/local-token').then(function(r) {
+      if (!r.ok) return null;
+      return r.json();
+    }).then(function(d) {
+      if (!d || !d.token) return;
+      var token = d.token;
+      var orig = window.fetch;
+      window.fetch = function(input, init) {
+        init = init || {};
+        var url = typeof input === 'string' ? input : (input && input.url) || '';
+        if (url.indexOf('/api/') !== -1) {
+          var headers = new Headers(init.headers || {});
+          if (!headers.has('x-local-token')) {
+            headers.set('x-local-token', token);
+            init.headers = headers;
+          }
+        }
+        return orig.call(this, input, init);
+      };
+    }).catch(function() {});
+  } catch (e) {}
+})();
+`;
+
+/**
  * 根布局
  * - 设置字体、主题变量
  * - 全局 Toaster 用于消息提示
@@ -57,6 +95,8 @@ export default function RootLayout({
       <head>
         {/* 主题初始化脚本：在渲染前应用保存的主题，防止闪烁 */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        {/* 本地访问令牌脚本：配置认证后自动携带 x-local-token（见 middleware.ts） */}
+        <script dangerouslySetInnerHTML={{ __html: localTokenScript }} />
       </head>
       <body className={inter.className}>
         {children}

@@ -11,11 +11,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { isEnvVarReference, isFileLink } from "@/lib/config/env-resolver";
 
 const logger = getLogger("SettingsAPI");
 
 // 该路由读写数据库中的 AI 配置，强制动态渲染
 export const dynamic = "force-dynamic";
+
+/**
+ * 对 API Key 脱敏（与 /api/settings/models 的 maskApiKey 规则一致）
+ *   - 环境变量引用（${VAR}）或 file:// 链接 → 原样返回
+ *   - 空字符串 → 原样返回
+ *   - 其他 → 仅保留前 4 位与后 4 位
+ *
+ * 安全：防止 GET 响应把明文密钥暴露给前端/任何无认证调用方。
+ */
+function maskApiKey(key: string): string {
+  if (!key) return "";
+  if (isEnvVarReference(key) || isFileLink(key)) return key;
+  if (key.length <= 8) return "****";
+  return `${key.slice(0, 4)}****${key.slice(-4)}`;
+}
+
+/**
+ * 判断该值是否为脱敏占位（PUT 回传时应忽略，避免覆盖真实 Key）
+ *   - 非空且含 "****"（脱敏格式）
+ *   - 且不是 ${ENV_VAR} / file:// 引用（引用原样返回，不算占位）
+ */
+function isMaskedPlaceholder(value: string): boolean {
+  if (!value) return false;
+  if (isEnvVarReference(value) || isFileLink(value)) return false;
+  return value.includes("****");
+}
 
 /**
  * 多 API Key 轮换池条目结构
@@ -88,12 +115,14 @@ function toDTO(record: {
   return {
     id: record.id,
     activeProvider: record.activeProvider,
-    apiKey: record.apiKey,
+    // 安全：返回脱敏后的 Key（避免明文泄漏）
+    apiKey: maskApiKey(record.apiKey),
     apiUrl: record.apiUrl,
     chatModel: record.chatModel,
     embeddingModel: record.embeddingModel,
     embeddingDims: record.embeddingDims,
-    apiKeys,
+    // 轮换池条目同样脱敏
+    apiKeys: apiKeys.map((k) => ({ ...k, key: maskApiKey(k.key) })),
     currentKeyIdx: record.currentKeyIdx,
     temperature: record.temperature,
     maxTokens: record.maxTokens,
@@ -155,7 +184,10 @@ export async function PUT(request: NextRequest) {
     }
 
     if (typeof body.apiKey === "string") {
-      data.apiKey = body.apiKey;
+      // 安全：脱敏占位（含 ****）回传时忽略，避免把真实 Key 覆盖为占位
+      if (!isMaskedPlaceholder(body.apiKey)) {
+        data.apiKey = body.apiKey;
+      }
     }
 
     if (typeof body.apiUrl === "string") {
@@ -182,13 +214,15 @@ export async function PUT(request: NextRequest) {
     }
 
     if (Array.isArray(body.apiKeys)) {
-      // 过滤无效条目，保证存储结构合法
+      // 过滤无效条目与脱敏占位条目，保证存储结构合法且不覆盖真实 Key
       const cleaned: ApiKeyEntry[] = body.apiKeys
         .filter(
           (k: unknown): k is ApiKeyEntry =>
             !!k &&
             typeof k === "object" &&
-            typeof (k as ApiKeyEntry).key === "string"
+            typeof (k as ApiKeyEntry).key === "string" &&
+            // 跳过脱敏占位（未修改的旧 Key 回传）
+            !isMaskedPlaceholder((k as ApiKeyEntry).key)
         )
         .map((k: ApiKeyEntry) => ({
           key: k.key,

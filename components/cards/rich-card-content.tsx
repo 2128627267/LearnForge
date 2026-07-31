@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { MathContent } from "@/components/math/katex-renderer";
 import katex from "katex";
+import DOMPurify from "dompurify";
 
 /**
  * 富文本卡片内容渲染组件
@@ -10,7 +11,7 @@ import katex from "katex";
  * 设计目的：
  *   兼容三种内容格式：
  *     1. 纯文本（含 LaTeX 标记 $...$ / $$...$$） → 用 MathContent 渲染
- *     2. HTML 字符串（来自 Tiptap 编辑器） → 解析 HTML 中的 LaTeX 后用 dangerouslySetInnerHTML
+ *     2. HTML 字符串（来自 Tiptap 编辑器） → DOMPurify 净化后解析 LaTeX 再用 dangerouslySetInnerHTML
  *     3. 空字符串 → 显示占位提示
  *
  * HTML 中 LaTeX 的处理：
@@ -19,11 +20,34 @@ import katex from "katex";
  *   - 注入到原 HTML 字符串中
  *   - 整体用 dangerouslySetInnerHTML 渲染
  *
- * 安全性：
- *   - LaTeX 部分由 katex.renderToString 生成（katex 内置转义）
- *   - 其他 HTML 来自 Tiptap（用户输入），仍存在 XSS 风险
- *   - 但本项目为本地单机应用，无跨用户场景，可接受
+ * 安全性（S5 修复，防 XSS）：
+ *   - 渲染前先用 DOMPurify.sanitize 净化 HTML，移除 <script>、事件属性
+ *     （onerror/onclick 等）、javascript: 协议等危险内容
+ *   - LaTeX 部分由 katex.renderToString 生成（内置转义，无 trust）
+ *   - 净化后 HTML 来自 Tiptap（用户输入）与 AI 生成内容、导入的数据包，
+ *     净化可阻断恶意脚本执行
+ *   - 纯文本路径（无 HTML 标签）由 MathContent 转义处理，天然安全
  */
+
+/** 净化器：统一配置，只净化一次（DOMPurify 是客户端库） */
+let sanitizer: ((html: string) => string) | null = null;
+function getSanitizer(): (html: string) => string {
+  if (!sanitizer) {
+    sanitizer = (html: string) =>
+      DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: [...SANITIZE_ALLOW_LIST],
+        // 链接仅允许 http/https/mailto（阻断 javascript: 等危险协议）
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
+      }) as string;
+  }
+  return sanitizer;
+}
+
+/** 允许保留的标签白名单（Tiptap 输出所需；脚本/事件属性/危险协议均被移除） */
+const SANITIZE_ALLOW_LIST = [
+  "p", "br", "strong", "b", "em", "i", "s", "strike", "u",
+  "ul", "ol", "li", "blockquote", "code", "pre", "a", "span", "div", "h1", "h2", "h3",
+] as const;
 
 interface RichCardContentProps {
   /** 卡片内容（纯文本或 HTML 字符串） */
@@ -101,8 +125,9 @@ export function RichCardContent({
       // 纯文本：用 MathContent 渲染（支持 LaTeX）
       return <MathContent text={content} />;
     }
-    // HTML：先渲染 LaTeX，再注入
-    const html = renderMathInHtml(content);
+    // HTML：先净化（防 XSS），再渲染 LaTeX，最后注入
+    const sanitized = getSanitizer()(content);
+    const html = renderMathInHtml(sanitized);
     return (
       <div
         className="rich-content prose prose-sm max-w-none"
