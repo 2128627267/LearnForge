@@ -968,7 +968,8 @@ function FreeCardNodeComponent({ id, data, selected, zIndex, xPos, yPos }: NodeP
   // 卡片主色：优先用 data.color，否则用 cardType 对应颜色，再回退到首标签色
   // 注意：此处使用 data.cardType 而非编辑态 cardType（避免非编辑态颜色闪烁）
   const currentCardType = data.cardType ?? "general";
-  const typeConfig = CARD_TYPE_CONFIG[currentCardType];
+  const typeConfig =
+    CARD_TYPE_CONFIG[currentCardType] ?? CARD_TYPE_CONFIG.general;
   const accentColor =
     data.color ||
     typeConfig.color ||

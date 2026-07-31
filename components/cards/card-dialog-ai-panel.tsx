@@ -48,6 +48,16 @@ interface ExtendPreview {
   suggestedOrder: string[];
 }
 
+/** 画布节点允许的卡片类型白名单（AI 返回的类型若不在白名单内则回退为 general） */
+const CARD_TYPE_WHITELIST = [
+  "concept",
+  "word",
+  "phrase",
+  "math",
+  "code",
+  "general",
+] as const;
+
 export function CardDialogAiPanel({
   ai,
   updateAi,
@@ -237,7 +247,11 @@ export function CardDialogAiPanel({
           content: item.content,
           tags: item.tags ?? [],
           learningMode: form.learningMode,
-          cardType: item.type as "concept" | "word" | "phrase" | "math" | "code" | "general" | undefined,
+          cardType: CARD_TYPE_WHITELIST.includes(
+            item.type as (typeof CARD_TYPE_WHITELIST)[number]
+          )
+            ? (item.type as (typeof CARD_TYPE_WHITELIST)[number])
+            : "general",
         },
         sourceId,
         relationLabel: "相关知识",
@@ -310,7 +324,7 @@ export function CardDialogAiPanel({
       `## 跨学科联系`,
       ...extPreview.crossSubject.map((c) => `- ${c}`),
       `## 推荐学习顺序`,
-      ...extPreview.suggestedOrder.map((s) => `1. ${s}`),
+      ...extPreview.suggestedOrder.map((s, i) => `${i + 1}. ${s}`),
     ].join("\n");
     updateForm({ content: form.content ? `${form.content}\n\n${sections}` : sections });
     toast.success("已追加到内容");

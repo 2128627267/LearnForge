@@ -145,7 +145,7 @@ export function parseContentToLearnData(
 
     // 归一化加粗标记行：**释义：** apple → 释义： apple，与纯文本标记统一处理
     const boldMatch = line.match(
-      /^\*\*(释义|意思|含义|mean|例句|例子|sentence|example|音标|词性)\s*[：:]\s*\*\*(.*)$/i
+      /^\*\*(释义|意思|含义|mean|例句|例子|sentence|example|音标|词性|要点|keyPoint)\s*[：:]\s*\*\*(.*)$/i
     );
     if (boldMatch) {
       line = `${boldMatch[1]}：${boldMatch[2].trim()}`;
@@ -157,10 +157,13 @@ export function parseContentToLearnData(
     }
 
     // 检测释义标记
-    if (/^(#+\s*)?(释义|意思|含义|mean)/i.test(line)) {
+    if (/^(#+\s*)?(释义|意思|含义|mean|要点|keyPoint)/i.test(line)) {
       currentSection = "mean";
       // 提取标记后的内容（如 "释义： 警报" → "警报"）
-      const rest = line.replace(/^(#+\s*)?(释义|意思|含义|mean)[：:]*\s*/i, "");
+      const rest = line.replace(
+        /^(#+\s*)?(释义|意思|含义|mean|要点|keyPoint)[：:]*\s*/i,
+        ""
+      );
       if (rest) mean.push(rest);
       continue;
     }

@@ -6,7 +6,6 @@ import {
   Background,
   Controls,
   MiniMap,
-  addEdge,
   useNodesState,
   useEdgesState,
   ReactFlowProvider,
@@ -97,7 +96,7 @@ export function CardCanvas({
   tagColors = {},
 }: CardCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  /** React Flow 实例引用（用于 addCard 时获取视口中心，确保新卡片可见） */
+  /** React Flow 实例引用（新建卡片 / AI 生成节点时获取视口中心，确保新卡片可见） */
   const rfInstance = useRef<ReactFlowInstance | null>(null);
 
   // 防御性处理：canvas 可能因 localStorage 损坏为 null/undefined
@@ -499,8 +498,8 @@ export function CardCanvas({
   }, [nodes, edges, safeCanvas.tags]);
 
   /**
-   * 通过 window 自定义事件暴露 addCard/export/import
-   * 供 SidePanel 调用
+   * 通过 window 自定义事件暴露 add-card/export/import
+   * canvas:add-card 事件打开新建卡片对话框；export/import 供 SidePanel 调用
    */
   useEffect(() => {
     const handleAdd = () => openCreateDialog();

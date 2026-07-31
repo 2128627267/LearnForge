@@ -58,7 +58,7 @@ export function buildInitialDraft(node?: FreeCardData | null): CardDraft {
     content: node?.content ?? "",
     tags: node?.tags ?? [],
     color: node?.color ?? "#3b82f6",
-    learningMode: "deep",
+    learningMode: node?.learningMode ?? "deep",
     width: node?.width ?? 280,
     ai: { ...DEFAULT_DRAFT.ai },
   };
