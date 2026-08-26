@@ -79,10 +79,10 @@ export default function CanvasPage() {
     return map;
   }, [safeCanvas.tags]);
 
-  /** 各颜色分类的卡片数统计（供 SidePanel 颜色标签显示） */
+  /** 各颜色分类的卡片数统计（供 SidePanel 颜色标签显示；透传标签存储色保持一致） */
   const colorCounts = useMemo(
-    () => getColorCounts(safeCanvas.nodes),
-    [safeCanvas.nodes]
+    () => getColorCounts(safeCanvas.nodes, tagColors),
+    [safeCanvas.nodes, tagColors]
   );
 
   /** 切换标签筛选 */
@@ -137,6 +137,7 @@ export default function CanvasPage() {
   const handleClear = useCallback(() => {
     setCanvas({ nodes: [], edges: [], tags: [] });
     setSelectedTags([]);
+    setSelectedColor(null);
     // 通知 CardCanvas 重置撤销/重做历史栈
     window.dispatchEvent(new CustomEvent("canvas:clear"));
   }, [setCanvas]);

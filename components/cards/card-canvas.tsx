@@ -33,7 +33,7 @@ import { CardSearch } from "./card-search";
 import { AlignmentToolbar } from "./alignment-toolbar";
 import { useUndoableCanvas } from "@/lib/hooks/use-undoable-canvas";
 import type { CanvasState } from "@/lib/hooks/use-local-storage";
-import { getEffectiveCardColor } from "@/lib/cards/color-categories";
+import { matchesCardColor } from "@/lib/cards/color-categories";
 import {
   exportWordTree,
   exportToLearnPack,
@@ -773,11 +773,12 @@ export function CardCanvas({
         selectedTags.length === 0 ||
         selectedTags.some((t) => nodeTags.includes(t));
 
-      // 颜色匹配（按有效分类色）
-      const colorMatched =
-        !selectedColor ||
-        getEffectiveCardColor(n.data as FreeCardData).toLowerCase() ===
-          selectedColor.toLowerCase();
+      // 颜色匹配（按有效分类色；与卡片实际渲染一致）
+      const colorMatched = matchesCardColor(
+        n.data as FreeCardData,
+        selectedColor,
+        tagColors
+      );
 
       // 搜索匹配
       const searchMatched = !searchMatchIds || searchMatchIds.has(n.id);

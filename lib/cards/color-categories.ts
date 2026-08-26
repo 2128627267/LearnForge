@@ -66,15 +66,45 @@ export interface CardColorSource {
 
 /**
  * 获取卡片的有效分类色：
- * 优先级 data.color → cardType 默认色 → 首标签 hash 色 → 默认蓝
+ * 优先级 data.color → 已知 cardType 默认色 → 未知 cardType 通用灰 →
+ * 无 cardType 时首标签存储色 → 首标签 hash 色 → 默认蓝
+ *
+ * 与卡片实际渲染路径（free-card-node）保持一致，确保分类统计与用户所见一致。
+ *
+ * @param data      卡片数据
+ * @param tagColors 标签名 → 存储颜色映射（优先于 hash，与卡片标签色渲染一致）
  */
-export function getEffectiveCardColor(data: CardColorSource): string {
+export function getEffectiveCardColor(
+  data: CardColorSource,
+  tagColors?: Record<string, string>
+): string {
   if (data.color) return data.color;
+  // 已知 cardType：使用其默认色（与卡片色条一致）
   if (data.cardType && CARD_TYPE_DEFAULT_COLORS[data.cardType]) {
     return CARD_TYPE_DEFAULT_COLORS[data.cardType];
   }
-  if (data.tags && data.tags.length > 0) return hashTagColor(data.tags[0]);
+  // 未知 cardType：与卡片实际渲染一致，回退通用灰
+  if (data.cardType) return CARD_TYPE_DEFAULT_COLORS.general;
+  // 无 cardType（通用卡片）：优先存储标签色，其次 hash
+  const firstTag = data.tags?.[0];
+  if (firstTag) return tagColors?.[firstTag] ?? hashTagColor(firstTag);
   return DEFAULT_CARD_COLOR;
+}
+
+/**
+ * 判断卡片是否匹配指定颜色（用于颜色筛选）
+ * 颜色比较大小写不敏感；colorHex 为空时恒为 true（不筛选）
+ */
+export function matchesCardColor(
+  data: CardColorSource,
+  colorHex: string | null | undefined,
+  tagColors?: Record<string, string>
+): boolean {
+  if (!colorHex) return true;
+  return (
+    getEffectiveCardColor(data, tagColors).toLowerCase() ===
+    colorHex.toLowerCase()
+  );
 }
 
 /** 是否应显示颜色分类标签（卡片数超过阈值） */
@@ -84,14 +114,17 @@ export function shouldShowColorLabels(cardCount: number): boolean {
 
 /**
  * 统计各颜色分类的卡片数
+ * @param nodes     卡片节点列表
+ * @param tagColors 标签名 → 存储颜色映射（可选）
  * @returns Map<颜色 hex(小写), 数量>；仅包含实际出现的颜色
  */
 export function getColorCounts(
-  nodes: Array<{ data: CardColorSource }>
+  nodes: Array<{ data: CardColorSource }>,
+  tagColors?: Record<string, string>
 ): Map<string, number> {
   const counts = new Map<string, number>();
   for (const n of nodes) {
-    const hex = getEffectiveCardColor(n.data).toLowerCase();
+    const hex = getEffectiveCardColor(n.data, tagColors).toLowerCase();
     counts.set(hex, (counts.get(hex) ?? 0) + 1);
   }
   return counts;
@@ -99,7 +132,7 @@ export function getColorCounts(
 
 /**
  * 按颜色筛选卡片节点
- * @param nodes 卡片节点列表
+ * @param nodes    卡片节点列表
  * @param colorHex 目标颜色（大小写不敏感）；为空返回全部
  */
 export function filterNodesByColor<T extends { data: CardColorSource }>(
@@ -107,8 +140,5 @@ export function filterNodesByColor<T extends { data: CardColorSource }>(
   colorHex: string | null | undefined
 ): T[] {
   if (!colorHex) return nodes;
-  const target = colorHex.toLowerCase();
-  return nodes.filter(
-    (n) => getEffectiveCardColor(n.data).toLowerCase() === target
-  );
+  return nodes.filter((n) => matchesCardColor(n.data, colorHex));
 }

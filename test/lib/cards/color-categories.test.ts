@@ -13,6 +13,7 @@ import {
   shouldShowColorLabels,
   getColorCounts,
   filterNodesByColor,
+  matchesCardColor,
   type CardColorSource,
 } from "@/lib/cards/color-categories";
 
@@ -38,6 +39,21 @@ describe("getEffectiveCardColor（有效分类色）", () => {
   it("无 color/cardType 时回退首标签 hash 色", () => {
     const tagColor = getEffectiveCardColor({ tags: ["数学"] });
     expect(tagColor).toBe(hashTagColor("数学"));
+  });
+
+  it("无 cardType 时优先使用存储标签色（与卡片标签色渲染一致）", () => {
+    const tagColors = { 考试: "#22c55e" };
+    // 存储色与 hash 可能不同：断言返回存储色
+    expect(getEffectiveCardColor({ tags: ["考试"] }, tagColors)).toBe(
+      "#22c55e"
+    );
+  });
+
+  it("未知 cardType 回退通用灰（与卡片实际渲染一致）", () => {
+    // legacy-importer / 外部 JSON 可能含任意 cardType
+    expect(getEffectiveCardColor({ cardType: "legacy_unknown" })).toBe(
+      "#6b7280"
+    );
   });
 
   it("全部缺失时回退默认色", () => {
@@ -99,5 +115,23 @@ describe("filterNodesByColor（按颜色筛选）", () => {
     expect(filterNodesByColor(nodes, null)).toHaveLength(3);
     expect(filterNodesByColor(nodes, undefined)).toHaveLength(3);
     expect(filterNodesByColor(nodes, "")).toHaveLength(3);
+  });
+});
+
+describe("matchesCardColor（颜色匹配判定）", () => {
+  it("匹配与大小写不敏感", () => {
+    expect(matchesCardColor({ color: "#3b82f6" }, "#3B82F6")).toBe(true);
+    expect(matchesCardColor({ color: "#ef4444" }, "#3b82f6")).toBe(false);
+  });
+
+  it("空颜色恒为 true（不筛选）", () => {
+    expect(matchesCardColor({ color: "#ef4444" }, null)).toBe(true);
+  });
+
+  it("透传 tagColors 参与判定", () => {
+    const tagColors = { 考试: "#22c55e" };
+    expect(matchesCardColor({ tags: ["考试"] }, "#22c55e", tagColors)).toBe(
+      true
+    );
   });
 });

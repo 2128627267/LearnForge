@@ -114,6 +114,9 @@ const LEARN_TOOL_BUTTONS: ToolButton[] = [
   },
 ];
 
+/** 颜色统计默认空 Map（常量引用，避免每次渲染新建实例） */
+const EMPTY_COLOR_COUNTS = new Map<string, number>();
+
 export function SidePanel({
   tags,
   selectedTags,
@@ -123,7 +126,7 @@ export function SidePanel({
   onClearSelection,
   onClearCanvas,
   cardCount = 0,
-  colorCounts = new Map(),
+  colorCounts = EMPTY_COLOR_COUNTS,
   selectedColor = null,
   onSelectColor,
 }: {
