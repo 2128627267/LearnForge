@@ -18,6 +18,8 @@ import {
   Redo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
+import { HighlightMark } from "@/lib/editor/highlight-mark";
+import { HighlightPalette } from "./highlight-palette";
 
 /**
  * 富文本编辑器组件（基于 Tiptap）
@@ -176,6 +178,8 @@ export function RichTextEditor({
         emptyEditorClass:
           "is-editor-empty:before:text-muted-foreground/50 before:content-[attr(data-placeholder)] before:absolute before:italic",
       }),
+      // 文字高亮（自研 Mark，支持多色 + 调色板）
+      HighlightMark,
     ],
     content,
     autofocus: autoFocus,
@@ -254,6 +258,16 @@ export function RichTextEditor({
             })}
           </div>
         ))}
+
+        {/* 高亮调色板组（插入链接组之后） */}
+        <div className="flex items-center gap-0.5">
+          <div className="w-px h-3.5 bg-border mx-0.5" />
+          <HighlightPalette
+            activeColor={editor.getAttributes("highlight").color}
+            onApply={(color) => editor.chain().focus().setHighlight(color).run()}
+            onClear={() => editor.chain().focus().unsetHighlight().run()}
+          />
+        </div>
       </div>
 
       {/* 编辑区 */}

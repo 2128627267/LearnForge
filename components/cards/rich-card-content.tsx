@@ -54,6 +54,7 @@ function loadSanitizer(): Promise<DOMPurifyModule> {
 const SANITIZE_ALLOW_LIST = [
   "p", "br", "strong", "b", "em", "i", "s", "strike", "u",
   "ul", "ol", "li", "blockquote", "code", "pre", "a", "span", "div", "h1", "h2", "h3",
+  "mark", // 文字高亮（颜色存于 data-color 与内联 style）
 ] as const;
 
 /** 净化 HTML（DOMPurify 未就绪时返回转义文本作为安全降级） */
@@ -61,6 +62,8 @@ function sanitizeHtml(html: string): string {
   if (!sanitizerMod) return escapeHtml(html);
   return sanitizerMod.sanitize(html, {
     ALLOWED_TAGS: [...SANITIZE_ALLOW_LIST],
+    // 放行内联样式（高亮背景色需要）；危险 URI 仍由 ALLOWED_URI_REGEXP 拦截
+    ADD_ATTR: ["style"],
     // 链接仅允许 http/https/mailto（阻断 javascript: 等危险协议）
     ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
   }) as string;
