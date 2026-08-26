@@ -124,4 +124,14 @@ describe("mergeCanvas", () => {
     });
     expect(mergeCanvas(canvas, canvas)).toEqual(canvas);
   });
+
+  it("已知局限（审查 G1）：本地删除的节点会从服务器基底复活", () => {
+    // 场景：用户删除了节点 b，与此同时 AI 批量写入触发 409 合并——
+    // 服务器基底仍含 b，合并结果中 b "复活"。MVP 无删除墓碑的既定取舍，
+    // 本用例固化该行为防止无意识变更（若未来实现墓碑语义请更新此用例）
+    const server = makeCanvas({ nodes: [makeNode("a"), makeNode("b")] });
+    const local = makeCanvas({ nodes: [makeNode("a")] }); // b 已被本地删除
+    const merged = mergeCanvas(server, local);
+    expect(merged.nodes.map((n) => n.id)).toEqual(["a", "b"]);
+  });
 });

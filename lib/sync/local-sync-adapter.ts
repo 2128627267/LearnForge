@@ -61,10 +61,22 @@ export class LocalSyncAdapter implements CanvasSyncAdapter {
 
     // 409 冲突：携带服务器最新数据返回，供上层合并
     if (r.status === 409) {
-      const json = (await r.json()) as {
-        data: CanvasState;
-        revision: number;
-      };
+      // B3 修复（审查）：409 响应体可能不是 JSON（反向代理/网关错误页）——
+      // 解析失败若向外抛异常，SaveQueue 会把 409 当"可重试失败"死循环重试
+      // 至耗尽；此处解析失败降级为不可重试失败，由用户手动重试
+      let json: { data?: CanvasState; revision?: number } | null = null;
+      try {
+        json = (await r.json()) as { data?: CanvasState; revision?: number };
+      } catch {
+        json = null;
+      }
+      if (
+        !json ||
+        typeof json.revision !== "number" ||
+        !json.data
+      ) {
+        return { outcome: "failed", retryable: false, status: 409 };
+      }
       return {
         outcome: "conflict",
         serverCanvas: json.data,

@@ -24,9 +24,14 @@ export function selectSnapshotsToPrune(
 ): string[] {
   if (snapshots.length <= max) return [];
   // 按 createdAt 倒序（最新在前），保留前 max 个
-  const sorted = [...snapshots].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  );
+  // B4 修复（审查）：createdAt 相同（同秒密集快照常见）时以 id 作次级排序键，
+  // 保证并列时保留/清理对象确定（id 为 cuid，单调性近似创建顺序）
+  const sorted = [...snapshots].sort((a, b) => {
+    const diff =
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (diff !== 0) return diff;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
   return sorted.slice(max).map((s) => s.id);
 }
 

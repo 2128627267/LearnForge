@@ -9,6 +9,7 @@
  * canvas-layout / canvas-snapshots / cards/batch 多个写入入口保持一致行为。
  */
 import { prisma } from "@/lib/db/prisma";
+import type { Prisma } from "@prisma/client";
 import { getLogger } from "@/lib/utils/logger";
 import {
   MAX_CANVAS_SNAPSHOTS,
@@ -24,13 +25,23 @@ const CANVAS_LAYOUT_ID = "default";
 export type SnapshotReason = "auto" | "manual" | "pre-restore";
 
 /**
+ * 数据库客户端类型：全局单例或交互式事务客户端
+ * （供 cards/batch、快照恢复等"读-改-写"路由把快照/日志纳入同一事务，
+ *  保证与主写入的原子性——审查 S1）
+ */
+type DbClient = Prisma.TransactionClient | typeof prisma;
+
+/**
  * 将当前 CanvasLayout 备份为快照
+ * @param reason 快照时机（auto/manual/pre-restore）
+ * @param tx 可选事务客户端（传入则快照与主写入同事务提交/回滚）
  * @returns 是否实际创建了快照（服务器无数据/数据损坏时返回 false）
  */
 export async function snapshotCurrentLayout(
-  reason: SnapshotReason
+  reason: SnapshotReason,
+  tx: DbClient = prisma
 ): Promise<boolean> {
-  const current = await prisma.canvasLayout.findUnique({
+  const current = await tx.canvasLayout.findUnique({
     where: { id: CANVAS_LAYOUT_ID },
   });
   if (!current) return false;
@@ -50,17 +61,17 @@ export async function snapshotCurrentLayout(
     return false;
   }
 
-  await prisma.canvasSnapshot.create({
+  await tx.canvasSnapshot.create({
     data: { data: current.data, nodeCount, edgeCount, reason },
   });
 
   // 滚动清理：超出保留上限的最老快照
-  const all = await prisma.canvasSnapshot.findMany({
+  const all = await tx.canvasSnapshot.findMany({
     select: { id: true, createdAt: true },
   });
   const prunable = selectSnapshotsToPrune(all, MAX_CANVAS_SNAPSHOTS);
   if (prunable.length > 0) {
-    await prisma.canvasSnapshot.deleteMany({
+    await tx.canvasSnapshot.deleteMany({
       where: { id: { in: prunable } },
     });
   }
@@ -82,9 +93,13 @@ export interface ChangeLogInput {
 
 /**
  * 追加变更日志并滚动清理（超出保留上限的最老条目）
+ * @param tx 可选事务客户端（传入则日志与主写入同事务提交/回滚——审查 S1）
  */
-export async function appendChangeLog(entry: ChangeLogInput): Promise<void> {
-  await prisma.dataChangeLog.create({
+export async function appendChangeLog(
+  entry: ChangeLogInput,
+  tx: DbClient = prisma
+): Promise<void> {
+  await tx.dataChangeLog.create({
     data: {
       action: entry.action,
       revision: entry.revision,
@@ -95,12 +110,12 @@ export async function appendChangeLog(entry: ChangeLogInput): Promise<void> {
     },
   });
 
-  const all = await prisma.dataChangeLog.findMany({
+  const all = await tx.dataChangeLog.findMany({
     select: { id: true, createdAt: true },
   });
   const prunable = selectChangeLogToPrune(all, MAX_CHANGE_LOG_ENTRIES);
   if (prunable.length > 0) {
-    await prisma.dataChangeLog.deleteMany({
+    await tx.dataChangeLog.deleteMany({
       where: { id: { in: prunable } },
     });
   }

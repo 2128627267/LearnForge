@@ -91,9 +91,13 @@ export function DataPanel() {
 
   /** 恢复指定快照（恢复前服务器自动备份当前数据） */
   const handleRestore = async (id: string) => {
+    // G2 修复（审查）：如实告知未保存修改的后果——pre-restore 备份的是
+    // 服务器当前数据，防抖中尚未保存的本地编辑会随恢复丢弃
     if (
       !window.confirm(
-        "确定恢复该快照？\n当前画布会先自动备份（可从快照列表再次恢复）。"
+        "确定恢复该快照？\n\n" +
+          "· 当前画布会先自动备份（可从快照列表再次恢复）\n" +
+          "· 尚未保存到服务器的修改（保存中/待保存）将丢失"
       )
     ) {
       return;
@@ -103,7 +107,8 @@ export function DataPanel() {
       await adapterRef.current!.restoreSnapshot(id);
       toast.success("快照已恢复，正在刷新画布…");
       // 稍等 toast 展示后整页刷新，重建同步基线
-      window.setTimeout(() => window.location.reload(), 800);
+      // （延迟从 800ms 缩短到 300ms：缩短刷新窗口期内新编辑被丢弃的风险）
+      window.setTimeout(() => window.location.reload(), 300);
     } catch (err) {
       toast.error("恢复快照失败", { description: String(err) });
       setBusy(false);
@@ -182,7 +187,8 @@ export function DataPanel() {
               </div>
             ))}
             <p className="text-[10px] text-muted-foreground">
-              自动保留最近 20 份快照（覆盖保存前备份）
+              自动保留最近 20 份快照（覆盖保存前备份）。若冲突合并后
+              已删除的卡片"复活"，可从快照恢复删除前状态
             </p>
           </div>
         )}

@@ -9,11 +9,13 @@
  *   响应: { ok: true, revision, updatedAt }
  *         409 { error: "revision_conflict", revision, data }  // 乐观锁冲突
  *
- * 乐观锁协议（X2 修复）：
+ * 乐观锁协议（X2 修复 + S1 原子化加固）：
  * - CanvasLayout.version 兼作单调递增 revision，每次成功写入 +1
  * - PUT 携带 baseRevision（客户端上次获知的 revision）；
  *   服务器当前 revision 不一致 → 409 + 服务器最新数据，客户端合并后重试
  * - baseRevision 为 null/缺省 → 无条件写入（兼容 batch / 首次保存等场景）
+ * - 写入采用条件原子更新（version 基线进 WHERE），消除并发
+ *   "读 → 判 → 写"窗口内的 TOCTOU 覆盖竞态（审查 S1）
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -68,6 +70,18 @@ const PutBodySchema = z.object({
   source: z.string().default("web"),
 });
 
+/** 乐观锁冲突响应（409 + 服务器最新数据，供客户端合并后重试） */
+function conflictResponse(layout: { version: number; data: string }) {
+  return NextResponse.json(
+    {
+      error: "revision_conflict",
+      revision: layout.version,
+      data: JSON.parse(layout.data),
+    },
+    { status: 409 }
+  );
+}
+
 export async function GET() {
   try {
     const layout = await prisma.canvasLayout.findUnique({
@@ -107,20 +121,13 @@ export async function PUT(request: NextRequest) {
       where: { id: CANVAS_LAYOUT_ID },
     });
 
-    // 乐观锁冲突检测：服务器已被其他通道（如 AI 批量写入）修改
+    // 乐观锁冲突预检（快速失败，省去快照开销；最终原子性由下方条件写入保证）
     if (
       baseRevision != null &&
       current &&
       current.version !== baseRevision
     ) {
-      return NextResponse.json(
-        {
-          error: "revision_conflict",
-          revision: current.version,
-          data: JSON.parse(current.data),
-        },
-        { status: 409 }
-      );
+      return conflictResponse(current);
     }
 
     // 覆盖前自动快照（服务器已有数据且内容将变化时）
@@ -128,16 +135,53 @@ export async function PUT(request: NextRequest) {
       await snapshotCurrentLayout("auto");
     }
 
-    const nextRevision = (current?.version ?? 0) + 1;
-    await prisma.canvasLayout.upsert({
-      where: { id: CANVAS_LAYOUT_ID },
-      update: { data: serialized, version: nextRevision },
-      create: {
-        id: CANVAS_LAYOUT_ID,
+    /**
+     * S1 修复（审查）：条件原子写入——把读到的 version 基线放进 WHERE，
+     * 消除"读 → 判 → upsert"窗口内并发写入（batch/restore/PUT 互相）静默
+     * 覆盖且共用同一 revision 的 TOCTOU 竞态。
+     * 预检通过后若并发请求抢先提交（version 已变），count=0 → 按冲突返回 409。
+     */
+    const written = await prisma.canvasLayout.updateMany({
+      where: { id: CANVAS_LAYOUT_ID, version: current?.version ?? 0 },
+      data: {
         data: serialized,
-        version: nextRevision,
+        version: { increment: 1 },
+        updatedAt: new Date(),
       },
     });
+
+    if (written.count === 0) {
+      // 并发写入已抢先提交：区分"记录不存在（首次保存竞态）"与"version 已变（冲突）"
+      const latest = await prisma.canvasLayout.findUnique({
+        where: { id: CANVAS_LAYOUT_ID },
+      });
+      if (latest) {
+        return conflictResponse(latest);
+      }
+      // 记录不存在：建立初始副本（create 撞并发唯一键时按冲突处理）
+      try {
+        await prisma.canvasLayout.create({
+          data: { id: CANVAS_LAYOUT_ID, data: serialized, version: 1 },
+        });
+      } catch {
+        const raced = await prisma.canvasLayout.findUnique({
+          where: { id: CANVAS_LAYOUT_ID },
+        });
+        if (raced) return conflictResponse(raced);
+        throw new Error("初始化画布布局失败");
+      }
+      await appendChangeLog({
+        action: "save",
+        revision: 1,
+        nodeCount: canvas.nodes.length,
+        edgeCount: canvas.edges.length,
+        source,
+        detail: { baseRevision: baseRevision ?? null },
+      });
+      return NextResponse.json({ ok: true, revision: 1 });
+    }
+
+    const nextRevision = (current?.version ?? 0) + 1;
 
     // 变更日志（完整性监控/丢失溯源）
     await appendChangeLog({

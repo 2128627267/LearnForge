@@ -27,6 +27,12 @@ import { toast } from "@/components/shared/toaster";
  * - X1 加载竞态：GET 返回前用户已编辑（引用比较）→ 不覆盖用户编辑
  * - X2 乐观锁：PUT 带 baseRevision，409 冲突时合并（新增保底）后重试
  * - R6 卸载兜底：visibilitychange 提前 flush（主路径）+ pagehide keepalive（兜底）
+ *
+ * 代码审查修复（2026-08）：
+ * - S2：409 合并基底改用最新画布引用（防 PUT→409 往返期间的用户编辑丢失）
+ * - G3：pagehide 仅在无在途保存时直发 keepalive（防同画布双 PUT 并发）
+ * - G5：加载失败后首次保存前补一次加载（防 baseRevision=null 盲覆盖服务器）
+ * - B1/B2：use-server 覆盖本地 / keepalive 保存成功后清除脏标记
  */
 const SAVE_DEBOUNCE_MS = 1500;
 
@@ -67,6 +73,10 @@ export function useCanvasServerSync(
   /** setCanvas 稳定引用（onConflict 回调中使用） */
   const setCanvasRef = useRef(setCanvas);
   setCanvasRef.current = setCanvas;
+  /** 最新保存阶段快照（pagehide 判定"是否有在途保存"用，不参与渲染） */
+  const statusRef = useRef<SaveStatus>({ phase: "idle" });
+  /** 首次加载是否失败（G5：保存前需补一次加载获取乐观锁基线） */
+  const loadFailedRef = useRef(false);
 
   /** 懒初始化保存队列（doSave 内统一维护 serverCanvas/revision/dirty meta） */
   const ensureQueue = useCallback((): SaveQueue => {
@@ -86,11 +96,27 @@ export function useCanvasServerSync(
         return result;
       },
       {
-        onStatus: setStatus,
+        onStatus: (status) => {
+          // 同步维护 ref（pagehide 等非 React 上下文需要读取最新阶段）
+          statusRef.current = status;
+          setStatus(status);
+        },
         onConflict: async (result, task) => {
           // X2 修复：服务器已被其他通道（AI 批量写入）修改
           // → 以服务器为基底合并本地新增（nodes/edges/tags 按 id diff）后重试
-          const merged = mergeCanvas(result.serverCanvas, task.canvas);
+          //
+          // S2 修复（审查）：合并基底必须用"最新画布引用"而非 task.canvas——
+          // task.canvas 是防抖入队时刻的快照，PUT→409 网络往返期间的用户编辑
+          // 只存在于 canvasRef 中；若以 task.canvas 为基底，setCanvas(merged)
+          // 会用旧快照的合并结果覆盖最新 state，往返期间的编辑被静默丢弃
+          const latest = canvasRef.current ?? task.canvas;
+          const merged = mergeCanvas(result.serverCanvas, latest);
+          // 清除挂起的防抖计时器：其闭包捕获的是合并前的旧画布引用，
+          // 若放任触发会用旧画布覆盖下方 enqueue 的合并结果（丢服务器新增）
+          if (debounceRef.current) {
+            clearTimeout(debounceRef.current);
+            debounceRef.current = null;
+          }
           revisionRef.current = result.serverRevision;
           serverCanvasRef.current = merged;
           setCanvasRef.current(merged);
@@ -119,7 +145,12 @@ export function useCanvasServerSync(
       } catch (err) {
         // 加载失败：保留 localStorage 缓存兜底（不覆盖、不阻塞）
         console.warn("[canvas-sync] 加载服务器布局失败:", err);
-        if (!cancelled) setLoaded(true);
+        if (!cancelled) {
+          setLoaded(true);
+          // G5 修复（审查）：标记加载失败——revision 基线缺失时，后续保存会
+          // 以 baseRevision=null 无条件覆盖服务器；首次保存前需补一次加载
+          loadFailedRef.current = true;
+        }
         return;
       }
       if (cancelled) return;
@@ -139,6 +170,9 @@ export function useCanvasServerSync(
           serverCanvasRef.current = server.canvas;
           revisionRef.current = server.revision;
           setCanvasRef.current(server.canvas);
+          // B1 修复（审查）：本地已被服务器版本取代，同步清除脏标记——
+          // 残留标记会让下次会话 reconcile 误判"本地有未同步修改"而保留旧缓存
+          clearDirtyMeta();
         } else if (
           canvasRef.current?.nodes?.length ||
           canvasRef.current?.edges?.length
@@ -187,10 +221,26 @@ export function useCanvasServerSync(
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       debounceRef.current = null;
-      ensureQueue().enqueue({
-        canvas,
-        baseRevision: revisionRef.current,
-      });
+      void (async () => {
+        // G5 修复（审查）：首次加载失败时 revision 基线缺失（null = 无条件
+        // 覆盖服务器）。首次保存前补一次加载获取基线；仍失败才降级为
+        // 无条件写入（此时服务器大概率确实不可用，localStorage 兜底）。
+        if (loadFailedRef.current) {
+          try {
+            const server = await adapterRef.current!.load();
+            loadFailedRef.current = false;
+            // 仅取 revision 作乐观锁基线：本地画布照常推送，若基线不符
+            // 服务器会返回 409，由 onConflict 合并（等价"本地胜"语义）
+            revisionRef.current = server.revision;
+          } catch {
+            /* 仍失败：保持 null，降级无条件写入 */
+          }
+        }
+        ensureQueue().enqueue({
+          canvas,
+          baseRevision: revisionRef.current,
+        });
+      })();
     }, SAVE_DEBOUNCE_MS);
   }, [canvas, loaded, ensureQueue]);
 
@@ -216,14 +266,22 @@ export function useCanvasServerSync(
     const onPageHide = () => {
       // 卸载兜底：keepalive 请求即使页面关闭也可由浏览器完成
       // （冲突/失败不再处理，下次加载由 reconcile/merge 兜底）
-      if (debounceRef.current || queueRef.current?.hasPending) {
-        if (debounceRef.current) {
-          clearTimeout(debounceRef.current);
-          debounceRef.current = null;
-        }
+      //
+      // G3 修复（审查）：仅在"防抖未到期且无在途保存"时直发——
+      // 在途保存（saving）携带的是已入队数据，再直发同一画布会产生
+      // 两个并发 PUT：其一必然 409 且无人处理，叠加服务端竞态放大风险。
+      // 在途场景信任已发出的请求 + dirty meta 兜底（下次会话 reconcile）。
+      if (debounceRef.current && statusRef.current.phase !== "saving") {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
         adapterRef
           .current!.save(canvasRef.current, revisionRef.current, {
             keepalive: true,
+          })
+          .then((result) => {
+            // B2 修复（审查）：keepalive 保存成功后清除脏标记——
+            // 否则下次会话 reconcile 会误判"本地有未同步修改"而覆盖服务器新数据
+            if (result.outcome === "saved") clearDirtyMeta();
           })
           .catch(() => {
             /* 卸载时静默失败，localStorage + dirty meta 兜底 */

@@ -60,6 +60,19 @@ describe("snapshot-policy", () => {
     expect(prune.sort()).toEqual(["s0", "s1"]);
   });
 
+  it("B4（审查）：同毫秒并列时应以 id 作次级排序键，结果确定", () => {
+    // 同一时刻密集创建的快照（保存频繁时常见）：createdAt 全部相同，
+    // 期望稳定保留 id 最大（cuid 近似最新）的条目、清理 id 较小的两个
+    const same = new Date("2026-08-26T00:00:00Z");
+    const entries = [
+      { id: "ckaaa", createdAt: same },
+      { id: "ckaab", createdAt: same },
+      { id: "ckaac", createdAt: same },
+    ];
+    const prune = selectSnapshotsToPrune(entries, 1);
+    expect(prune).toEqual(["ckaab", "ckaaa"]); // 倒序（新→老）后保留 ckaac
+  });
+
   it("变更日志清理逻辑与快照一致（上限独立）", () => {
     const entries = makeEntries(202);
     const prune = selectChangeLogToPrune(entries);
