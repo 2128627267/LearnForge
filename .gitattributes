@@ -1,0 +1,30 @@
+# 换行符规范化规则
+# 背景：Windows Git 默认 autocrlf=true 会把文本文件检出为 CRLF，
+# 但 Bash 脚本含 \r 时无法在 Linux/macOS 执行（\r 被解析为命令字符）。
+
+# Shell 脚本：仓库内与检出均强制 LF
+*.sh text eol=lf
+
+# 其余文本文件：仓库内统一 LF，检出按平台转换（遵循各自 autocrlf 配置）
+*.ts text
+*.tsx text
+*.js text
+*.mjs text
+*.json text
+*.md text
+*.css text
+
+# PowerShell 脚本：CRLF/LF 均可执行，跟随平台默认即可（仓库内 LF）
+*.ps1 text
+
+# Windows 批处理：CRLF 更稳妥
+*.bat text eol=crlf
+
+# 二进制文件（不做任何转换）
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.db binary
+*.woff binary
+*.woff2 binary
