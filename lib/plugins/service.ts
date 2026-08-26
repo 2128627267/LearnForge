@@ -8,7 +8,7 @@
  *
  * 所有函数依赖 prisma 单例（lib/db/prisma），路由层直接调用。
  */
-import type { Plugin, PluginTool } from "@prisma/client";
+import { Prisma, type Plugin, type PluginTool } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { BUILTIN_CANVAS_MANIFEST, BUILTIN_PLUGIN_NAME } from "./builtin";
 import { parseManifest } from "./manifest";
@@ -20,11 +20,23 @@ import type {
 
 // ==================== 内置插件初始化 ====================
 
+/** 判断是否为 Prisma 唯一约束冲突（P2002） */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
+  );
+}
+
 /**
  * 幂等写入内置插件
  *
  * - 不存在 → 创建（enabled=true）
  * - 已存在 → 跳过（不覆盖用户对 enabled 的修改，也不强制升级版本）
+ * - 已存在但 source 非 builtin（注册表被外部篡改的异常态）→ 同样跳过，
+ *   不覆盖该行；恢复正常的方法是删除该行后重新触发初始化
+ *
+ * 并发防护（审查 G-1）：两个请求同时发现"不存在"并竞相写入时，
+ * 后落库的一方触发 P2002 唯一约束冲突——此时对方已写入，视为幂等成功。
  *
  * 调用时机：plugins 管理 API 与 capabilities 聚合首次访问时（各一次查询开销）
  */
@@ -35,7 +47,12 @@ export async function ensureBuiltinPlugins(): Promise<void> {
   });
   if (existing) return;
 
-  await installManifest(BUILTIN_CANVAS_MANIFEST, "builtin");
+  try {
+    await installManifest(BUILTIN_CANVAS_MANIFEST, "builtin");
+  } catch (err) {
+    if (isUniqueViolation(err)) return; // 并发初始化，对方已完成写入
+    throw err;
+  }
 }
 
 // ==================== 内部写入辅助 ====================
@@ -121,6 +138,15 @@ export async function installPlugin(
 ): Promise<Plugin & { tools: PluginTool[] }> {
   const manifest = parseManifest(raw);
 
+  // 保留名（审查 G-6）：builtin-canvas 由系统初始化通道写入，
+  // 用户通道禁止占用——否则会在 ensureBuiltinPlugins 幂等检查处造成身份混淆
+  if (manifest.name === BUILTIN_PLUGIN_NAME) {
+    throw new InstallError(
+      `插件名 ${BUILTIN_PLUGIN_NAME} 为内置插件保留名`,
+      409
+    );
+  }
+
   // name 重复 → 提示走更新通道
   const byName = await prisma.plugin.findUnique({
     where: { name: manifest.name },
@@ -145,7 +171,19 @@ export async function installPlugin(
     );
   }
 
-  return installManifest(manifest, "user");
+  try {
+    return await installManifest(manifest, "user");
+  } catch (err) {
+    // 并发窗口兜底（审查 G-2）：预检通过到事务落库之间 name/工具名被
+    // 并发请求抢占 → 数据库唯一约束触发 P2002，统一转为可读的 409
+    if (isUniqueViolation(err)) {
+      throw new InstallError(
+        "插件名或工具名已被并发操作占用，请重试",
+        409
+      );
+    }
+    throw err;
+  }
 }
 
 /**
@@ -163,6 +201,11 @@ export async function updatePlugin(
   const existing = await prisma.plugin.findUnique({ where: { id } });
   if (!existing) {
     throw new InstallError("插件不存在", 404);
+  }
+  // builtin 保护（审查 G-3）：内置插件由版本升级通道管理，
+  // 用户通道修改会破坏其与代码内置 manifest 的一致性（可启停，不可改内容）
+  if (existing.source === "builtin") {
+    throw new InstallError("内置插件不可修改（可启停）", 400);
   }
   if (existing.name !== manifest.name) {
     throw new InstallError(
@@ -186,31 +229,43 @@ export async function updatePlugin(
     );
   }
 
-  return prisma.$transaction(async (tx) => {
-    // 重建工具行：先删后建（manifest 工具集合可能增删改名）
-    await tx.pluginTool.deleteMany({ where: { pluginId: id } });
-    return tx.plugin.update({
-      where: { id },
-      data: {
-        displayName: manifest.displayName,
-        description: manifest.description ?? "",
-        version: manifest.version,
-        author: manifest.author ?? "",
-        manifest: JSON.stringify(manifest),
-        tools: {
-          create: manifest.tools.map((tool) => ({
-            name: tool.name,
-            description: tool.description,
-            parametersSchema: JSON.stringify(tool.parameters ?? {}),
-            method: tool.endpoint.method,
-            url: tool.endpoint.url,
-            permissions: JSON.stringify(tool.permissions),
-          })),
+  try {
+    return await prisma.$transaction(async (tx) => {
+      // 重建工具行：先删后建（manifest 工具集合可能增删改名）
+      await tx.pluginTool.deleteMany({ where: { pluginId: id } });
+      return tx.plugin.update({
+        where: { id },
+        data: {
+          displayName: manifest.displayName,
+          description: manifest.description ?? "",
+          version: manifest.version,
+          author: manifest.author ?? "",
+          manifest: JSON.stringify(manifest),
+          tools: {
+            create: manifest.tools.map((tool) => ({
+              name: tool.name,
+              description: tool.description,
+              parametersSchema: JSON.stringify(tool.parameters ?? {}),
+              method: tool.endpoint.method,
+              url: tool.endpoint.url,
+              permissions: JSON.stringify(tool.permissions),
+            })),
+          },
         },
-      },
-      include: { tools: true },
+        include: { tools: true },
+      });
     });
-  });
+  } catch (err) {
+    // 并发窗口兜底（审查 G-2）：删除旧工具行后重建时，
+    // 与并发安装/更新在 PluginTool.name 唯一约束上冲突 → 409
+    if (isUniqueViolation(err)) {
+      throw new InstallError(
+        "工具名已被并发操作占用，请重试",
+        409
+      );
+    }
+    throw err;
+  }
 }
 
 /** 启停插件（禁用后不聚合到 capabilities，其身份调用被拒绝） */

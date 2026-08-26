@@ -29,7 +29,14 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    // 非法 JSON（缺引号/截断等）解析抛 SyntaxError → 500；容错转 400（审查 G-5）
+    const body = await request.json().catch(() => null);
+    if (body === null) {
+      return NextResponse.json(
+        { error: "请求体必须是合法的 JSON" },
+        { status: 400 }
+      );
+    }
     const plugin = await installPlugin(body);
     logger.info("插件已安装", { name: plugin.name, version: plugin.version });
     return NextResponse.json(plugin, { status: 201 });

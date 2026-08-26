@@ -67,6 +67,18 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // 插件身份校验（F5 审查 S-1）：本端点必需 cards:write；
+    // 未接线时插件可绕过 batch 通道直接走单卡创建，形成权限缺口
+    const auth = await authorizePluginCall(
+      prisma,
+      request,
+      "POST",
+      "/api/cards"
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await request.json();
     const input = CreateCardSchema.parse(body);
     const card = await cardService.create(TEMP_USER_ID, input);

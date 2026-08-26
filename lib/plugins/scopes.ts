@@ -41,6 +41,7 @@ export const SCOPE_LABELS: Record<PluginScope, string> = {
  */
 export const ENDPOINT_SCOPES: Record<string, PluginScope[]> = {
   "GET /api/cards": ["cards:read"],
+  "POST /api/cards": ["cards:write"],
   "POST /api/cards/batch": ["cards:write", "canvas:write"],
   "POST /api/cards/connect": ["canvas:write"],
   "GET /api/canvas-layout": ["canvas:read"],

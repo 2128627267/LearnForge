@@ -65,6 +65,11 @@ describe("requiredScopesFor — 端点权限映射", () => {
     ]);
   });
 
+  it("单卡创建端点需要 cards:write（审查 S-1 补登记）", () => {
+    // 未登记时插件可绕过 batch 通道走单卡创建，形成权限缺口
+    expect(requiredScopesFor("POST", "/api/cards")).toEqual(["cards:write"]);
+  });
+
   it("未登记端点返回 null（无插件级权限要求）", () => {
     expect(requiredScopesFor("GET", "/api/health")).toBeNull();
     expect(requiredScopesFor("DELETE", "/api/cards/batch")).toBeNull();

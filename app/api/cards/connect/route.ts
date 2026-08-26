@@ -153,29 +153,37 @@ export async function POST(request: NextRequest) {
     }
 
     layout.edges.push(...createdEdges);
-    await prisma.canvasLayout.upsert({
-      where: { id: CANVAS_LAYOUT_ID },
-      update: { data: JSON.stringify(layout) },
-      create: { id: CANVAS_LAYOUT_ID, data: JSON.stringify(layout) },
-    });
 
-    // 变更日志（F5 审计补充）：连线写入与 batch 通道一致落审计；
-    // 本端点 upsert 不推进 version，revision 取当前服务器值
-    const row = await prisma.canvasLayout.findUnique({
-      where: { id: CANVAS_LAYOUT_ID },
-      select: { version: true },
-    });
-    await appendChangeLog({
-      action: "connect",
-      revision: row?.version ?? 0,
-      nodeCount: layout.nodes.length,
-      edgeCount: layout.edges.length,
-      source: auditSource,
-      detail: {
-        created: createdEdges.length,
-        skipped: skipped.length,
-        invalid: invalid.length,
-      },
+    // 事务化（审查 B-4）：布局写入、revision 读取与审计日志同事务
+    // 提交/回滚，避免"布局已写、日志丢失"（或反之）的不一致。
+    // 变更日志与 batch 通道一致落审计；本端点 upsert 不推进
+    // version，revision 取当前服务器值
+    await prisma.$transaction(async (tx) => {
+      await tx.canvasLayout.upsert({
+        where: { id: CANVAS_LAYOUT_ID },
+        update: { data: JSON.stringify(layout) },
+        create: { id: CANVAS_LAYOUT_ID, data: JSON.stringify(layout) },
+      });
+
+      const row = await tx.canvasLayout.findUnique({
+        where: { id: CANVAS_LAYOUT_ID },
+        select: { version: true },
+      });
+      await appendChangeLog(
+        {
+          action: "connect",
+          revision: row?.version ?? 0,
+          nodeCount: layout.nodes.length,
+          edgeCount: layout.edges.length,
+          source: auditSource,
+          detail: {
+            created: createdEdges.length,
+            skipped: skipped.length,
+            invalid: invalid.length,
+          },
+        },
+        tx
+      );
     });
 
     logger.info("创建画布连线", {

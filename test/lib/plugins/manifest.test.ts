@@ -158,6 +158,59 @@ describe("PluginManifestSchema — 语义校验", () => {
     });
     expect(parsed.tools).toHaveLength(2);
   });
+
+  it("未在权限登记表登记的站内端点拒绝（审查 S-1）", () => {
+    // POST /api/plugins 是站内 /api/ 路径但未在 ENDPOINT_SCOPES 登记——
+    // 暴露未登记端点即形成"无插件级权限校验"的绕过路径，必须在安装期拒绝
+    const result = PluginManifestSchema.safeParse({
+      ...validManifest(),
+      tools: [
+        {
+          ...validManifest().tools[0],
+          endpoint: { method: "POST", url: "/api/plugins" },
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.map((i) => i.message).join(";");
+      expect(msg).toContain("未在权限登记表");
+    }
+  });
+
+  it("parameters 嵌套深度超过 16 层拒绝（审查 G-4）", () => {
+    // 构造 17 层嵌套对象（{a:{a:{...}}}），防 stringify 栈溢出的深度上限
+    let deep: Record<string, unknown> = { leaf: true };
+    for (let i = 0; i < 17; i++) {
+      deep = { a: deep };
+    }
+    const result = PluginManifestSchema.safeParse({
+      ...validManifest(),
+      tools: [
+        {
+          ...validManifest().tools[0],
+          parameters: deep,
+        },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const msg = result.error.issues.map((i) => i.message).join(";");
+      expect(msg).toContain("嵌套深度");
+    }
+  });
+
+  it("多次解析的 parameters 不共享可变引用（审查 B-2）", () => {
+    // zod v3 的 .default({}) 会返回单例引用，两个解析结果会互相污染；
+    // transform 工厂保证每次解析得到独立对象
+    const raw = validManifest();
+    const a = parseManifest(raw);
+    const b = parseManifest(raw);
+    (a.tools[0].parameters as Record<string, unknown>).polluted = true;
+    expect(
+      (b.tools[0].parameters as Record<string, unknown>).polluted
+    ).toBeUndefined();
+  });
 });
 
 describe("内置插件清单自检", () => {

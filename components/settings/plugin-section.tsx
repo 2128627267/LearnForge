@@ -124,7 +124,8 @@ export function PluginSection() {
       setPlugins(data.items || []);
     } catch (err) {
       toast.error("加载插件列表失败", { description: String(err) });
-      setPlugins([]);
+      // 刷新失败保留上次列表（审查 B-5）：不应因一次失败清空已展示数据；
+      // 仅首次加载（prev 为空）时自然呈现空态
     } finally {
       setLoading(false);
     }
@@ -509,39 +510,46 @@ export function PluginSection() {
                           )}
                         </div>
 
-                        {/* manifest 更新 */}
-                        <div className="space-y-2">
-                          <h4 className="text-xs font-medium text-muted-foreground">
-                            manifest（编辑后点击更新，name 不可变）
-                          </h4>
-                          <Textarea
-                            value={updateJsons[plugin.id] ?? ""}
-                            onChange={(e) =>
-                              setUpdateJsons((prev) => ({
-                                ...prev,
-                                [plugin.id]: e.target.value,
-                              }))
-                            }
-                            rows={8}
-                            className="font-mono text-xs"
-                          />
-                          <div className="flex justify-end">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleUpdate(plugin)}
-                              disabled={updatingId === plugin.id}
-                            >
-                              {updatingId === plugin.id ? (
-                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                              ) : (
-                                <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                              )}
-                              {updatingId === plugin.id ? "更新中..." : "更新插件"}
-                            </Button>
+                        {/* manifest 更新（builtin 不可修改，隐藏编辑区——审查 G-3 UI 侧） */}
+                        {plugin.source !== "builtin" && (
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-medium text-muted-foreground">
+                              manifest（编辑后点击更新，name 不可变）
+                            </h4>
+                            <Textarea
+                              value={updateJsons[plugin.id] ?? ""}
+                              onChange={(e) =>
+                                setUpdateJsons((prev) => ({
+                                  ...prev,
+                                  [plugin.id]: e.target.value,
+                                }))
+                              }
+                              rows={8}
+                              className="font-mono text-xs"
+                            />
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleUpdate(plugin)}
+                                disabled={updatingId === plugin.id}
+                              >
+                                {updatingId === plugin.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                                ) : (
+                                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                                )}
+                                {updatingId === plugin.id ? "更新中..." : "更新插件"}
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        )}
+                        {plugin.source === "builtin" && (
+                          <p className="text-xs text-muted-foreground">
+                            内置插件由版本升级通道管理，不可修改（可启停）。
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>

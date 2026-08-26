@@ -44,7 +44,14 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
-    const body = await request.json();
+    // 非法 JSON 容错（审查 G-5）：SyntaxError → 400 而非 500
+    const body = await request.json().catch(() => null);
+    if (body === null) {
+      return NextResponse.json(
+        { error: "请求体必须是合法的 JSON" },
+        { status: 400 }
+      );
+    }
     const plugin = await updatePlugin(params.id, body);
     logger.info("插件已更新", { name: plugin.name, version: plugin.version });
     return NextResponse.json(plugin);
@@ -63,7 +70,14 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
-    const body = await request.json();
+    // 非法 JSON 容错（审查 G-5）：SyntaxError → 400 而非 500
+    const body = await request.json().catch(() => null);
+    if (body === null) {
+      return NextResponse.json(
+        { error: "请求体必须是合法的 JSON" },
+        { status: 400 }
+      );
+    }
     const { enabled } = PatchSchema.parse(body);
     const plugin = await setPluginEnabled(params.id, enabled);
     logger.info("插件启停已变更", { name: plugin.name, enabled });

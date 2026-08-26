@@ -58,7 +58,12 @@ export async function authorizePluginCall(
   if (required && required.length > 0) {
     let granted: string[] = [];
     try {
-      granted = (JSON.parse(plugin.manifest).permissions ?? []) as string[];
+      // 防御性解析（审查 B-7）：manifest 结构异常（permissions 非数组，
+      // 如注册表被外部篡改）视为无权限——与 JSON 损坏同一安全默认
+      const declared: unknown = (JSON.parse(plugin.manifest) as {
+        permissions?: unknown;
+      }).permissions;
+      granted = Array.isArray(declared) ? (declared as string[]) : [];
     } catch {
       // manifest 损坏视为无权限（注册表数据异常时的安全默认）
       granted = [];
@@ -84,7 +89,11 @@ export async function authorizePluginCall(
 }
 
 /**
- * 权限子集判断（纯函数，供测试与安装期校验复用）
+ * 权限子集判断（纯函数，当前供单元测试复用）
+ *
+ * 说明：安装期的"工具权限 ⊆ 插件权限总集"校验在 manifest.ts 的
+ * superRefine 中实现（zod 校验链内联，无需调用本函数）；本函数
+ * 保留为独立纯函数以便测试直接验证子集语义（审查 B-3 注释修正）。
  *
  * @param required 必需作用域
  * @param granted  已授予作用域
