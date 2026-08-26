@@ -77,6 +77,21 @@ Thumbs.db
 *.tmp
 *.bak
 
+# ============ 测试产物 ============
+# Vitest 输出（覆盖率报告、JSON 结果、运行日志）与项目内临时目录
+coverage/
+test-result.json
+test-run*.log
+.tmp/
+
+# ============ 构建/诊断日志 ============
+typecheck*.log
+lint*.log
+wrapper*.log
+npm-install*.log
+npm-sync*.log
+node-procs.txt
+
 # ============ 安全：敏感数据不入库 ============
 # SQLite 数据库（含明文 API Key 的 AISettings 表 + 画布布局 CanvasLayout 表）
 *.db
