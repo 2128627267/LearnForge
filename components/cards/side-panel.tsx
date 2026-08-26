@@ -9,6 +9,7 @@ import {
   CARD_COLOR_THRESHOLD,
   shouldShowColorLabels,
 } from "@/lib/cards/color-categories";
+import { DataPanel } from "./data-panel";
 import {
   Plus,
   Download,
@@ -23,6 +24,7 @@ import {
   GraduationCap,
   Sparkles,
   Palette,
+  Database,
   type LucideIcon,
 } from "lucide-react";
 
@@ -147,7 +149,7 @@ export function SidePanel({
   onSelectColor?: (color: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"tools" | "tags" | "colors">("tools");
+  const [tab, setTab] = useState<"tools" | "tags" | "colors" | "data">("tools");
   const [showHelp, setShowHelp] = useState(false);
   const [showAddTag, setShowAddTag] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -320,6 +322,19 @@ export function SidePanel({
             )}
           >
             颜色
+          </button>
+          <button
+            onClick={() => setTab("data")}
+            className={cn(
+              "flex-1 px-3 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-1",
+              tab === "data"
+                ? "text-primary border-b-2 border-primary bg-primary/5"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+            title="快照恢复与变更日志"
+          >
+            <Database className="w-3.5 h-3.5" />
+            数据
           </button>
         </div>
 
@@ -507,11 +522,13 @@ export function SidePanel({
                     })}
                   </div>
                   <p className="text-[10px] text-muted-foreground">
-                    卡片数超过 {CARD_COLOR_THRESHOLD} 时自动显示分类统计，保持界面简洁
-                  </p>
+                卡片数超过 {CARD_COLOR_THRESHOLD} 时自动显示分类统计，保持界面简洁
+              </p>
                 </div>
               )}
             </div>
+          ) : tab === "data" ? (
+            <DataPanel />
           ) : (
             <div className="space-y-3">
               {/* 搜索框 */}

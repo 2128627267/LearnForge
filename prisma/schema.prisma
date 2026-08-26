@@ -780,7 +780,47 @@ model CanvasLayout {
   id        String   @id // 固定 "default"（单机单用户）
   /// CanvasState 序列化 JSON
   data      String
-  /// 数据格式版本（未来迁移用）
+  /// 单调递增 revision：每次成功写入 +1，用于乐观锁与新旧协调
+  /// （历史语义"数据格式版本"已由 CanvasState 结构自描述，此字段复用为 revision）
   version   Int      @default(1)
   updatedAt DateTime @updatedAt
+}
+
+/// 画布数据快照（F3：防止单行覆盖导致不可恢复的数据丢失）
+/// 时机：每次覆盖保存前自动落一份（auto）、用户手动创建（manual）、恢复前备份（pre-restore）
+/// 保留策略：滚动保留最近 MAX_CANVAS_SNAPSHOTS 份（见 lib/sync/snapshot-policy.ts）
+model CanvasSnapshot {
+  id        String   @id @default(cuid())
+  /// CanvasState 序列化 JSON
+  data      String
+  /// 快照内节点数（便于列表展示，避免反序列化整个 JSON）
+  nodeCount Int
+  /// 快照内连线数
+  edgeCount Int
+  /// 快照来源：auto | manual | pre-restore
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+/// 画布数据变更日志（F3：审计"谁在何时改了画布"，用于完整性监控与丢失溯源）
+/// action：save | batch-create | restore | clear 等
+model DataChangeLog {
+  id        String   @id @default(cuid())
+  /// 变更类型（save/batch-create/restore/clear）
+  action    String
+  /// 写入后的服务器 revision（CanvasLayout.version）
+  revision  Int
+  /// 写入后的节点数
+  nodeCount Int
+  /// 写入后的连线数
+  edgeCount Int
+  /// 来源标识：web | ai-batch | restore:<snapshotId> 等
+  source    String
+  /// 附加信息 JSON（如跳过的节点、冲突说明）
+  detail    String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }
