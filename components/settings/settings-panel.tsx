@@ -39,6 +39,7 @@ import {
 import { ModelConfigSection } from "./model-config-section";
 import { TaskBindingSection } from "./task-binding-section";
 import { CodecSection } from "./codec-section";
+import { PluginSection } from "./plugin-section";
 
 // ==================== 类型定义 ====================
 
@@ -1103,6 +1104,9 @@ export function SettingsPanel() {
 
       {/* ==================== D. 文件编解码器 ==================== */}
       <CodecSection />
+
+      {/* ==================== E. 插件/技能系统（F5） ==================== */}
+      <PluginSection />
 
       {/* ==================== 清空确认对话框 ==================== */}
       <Dialog

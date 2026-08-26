@@ -26,6 +26,7 @@ import {
   appendChangeLog,
   snapshotCurrentLayout,
 } from "@/lib/sync/server-ops";
+import { authorizePluginCall } from "@/lib/plugins/permissions";
 
 const logger = getLogger("CardsBatchAPI");
 
@@ -174,6 +175,19 @@ function makeNodeId(ts: number, i: number): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // 插件身份校验（F5）：带 x-plugin-id 的请求按插件权限作用域执行
+    // （本端点必需 cards:write + canvas:write），否则视为 web 用户直连
+    const auth = await authorizePluginCall(
+      prisma,
+      request,
+      "POST",
+      "/api/cards/batch"
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    const auditSource = auth.context?.auditSource ?? "ai-batch";
+
     const body = await request.json();
     const parsed = BatchSchema.safeParse(body);
     if (!parsed.success) {
@@ -283,14 +297,14 @@ export async function POST(request: NextRequest) {
           }
           const revision = await saveLayout(tx, layout);
 
-          // 变更日志（AI 批量写入通道，source=ai-batch）
+          // 变更日志（AI 批量写入通道；插件调用时 source=plugin:<name> 便于审计溯源）
           await appendChangeLog(
             {
               action: "batch-create",
               revision,
               nodeCount: layout.nodes.length,
               edgeCount: layout.edges.length,
-              source: "ai-batch",
+              source: auditSource,
               detail: {
                 created: createdNodes.length,
                 skipped: skipped.length,

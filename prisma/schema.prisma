@@ -816,11 +816,65 @@ model DataChangeLog {
   nodeCount Int
   /// 写入后的连线数
   edgeCount Int
-  /// 来源标识：web | ai-batch | restore:<snapshotId> 等
+  /// 来源标识：web | ai-batch | restore:<snapshotId> | plugin:<name> 等
   source    String
   /// 附加信息 JSON（如跳过的节点、冲突说明）
   detail    String   @default("{}")
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ==================== 插件/技能系统（F5）====================
+// 详见 .doc/07-DESIGN-PLUGIN-HARNESS.md
+// 插件 = 声明式技能清单（manifest）：元信息 + 权限作用域 + 工具集合
+
+/// 插件注册表
+model Plugin {
+  id          String   @id @default(cuid())
+  /// 唯一标识（kebab-case，来自 manifest.name）
+  name        String   @unique
+  /// 展示名
+  displayName String
+  /// 描述（≤500 字符）
+  description String   @default("")
+  /// semver 版本（X.Y.Z）
+  version     String
+  /// 作者（≤100 字符）
+  author      String   @default("")
+  /// 来源：builtin（内置，不可删除）| user（用户安装）
+  source      String   @default("user")
+  /// 是否启用（禁用的插件不聚合到 capabilities，其身份调用被拒绝）
+  enabled     Boolean  @default(true)
+  /// 完整 manifest JSON（安装/更新时提交的原始清单，供详情展示与更新对比）
+  manifest    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tools PluginTool[]
+
+  @@index([enabled])
+}
+
+/// 插件工具（manifest.tools 展开行，便于聚合查询与全局唯一约束）
+model PluginTool {
+  id               String @id @default(cuid())
+  pluginId         String
+  /// 工具名（全局唯一：跨插件冲突在安装时拒绝，保证 capabilities 无歧义）
+  name             String @unique
+  /// 工具描述（注入模型的说明文本）
+  description      String @default("")
+  /// OpenAI function-calling 参数 JSON Schema
+  parametersSchema String @default("{}")
+  /// HTTP 端点方法（GET|POST|PUT|PATCH|DELETE）
+  method           String
+  /// 站内端点路径（/api/ 开头；仅用于 capabilities 展示，执行权限以服务端映射为准）
+  url              String
+  /// 工具所需权限作用域 JSON 数组（如 ["cards:write","canvas:write"]）
+  permissions      String @default("[]")
+  createdAt        DateTime @default(now())
+
+  plugin Plugin @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@index([pluginId])
 }

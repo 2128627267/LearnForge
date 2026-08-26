@@ -4,9 +4,11 @@
  * POST   /api/cards      - 创建卡片
  */
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db/prisma";
 import { cardService } from "@/lib/services/cards/service";
 import { CreateCardSchema, CardQuerySchema } from "@/lib/services/cards/types";
 import { getLogger } from "@/lib/utils/logger";
+import { authorizePluginCall } from "@/lib/plugins/permissions";
 
 const logger = getLogger("CardsAPI");
 
@@ -22,6 +24,17 @@ const TEMP_USER_ID = "dev-user";
  */
 export async function GET(request: NextRequest) {
   try {
+    // 插件身份校验（F5）：本端点必需 cards:read；无 x-plugin-id 时直连放行
+    const auth = await authorizePluginCall(
+      prisma,
+      request,
+      "GET",
+      "/api/cards"
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const params = Object.fromEntries(request.nextUrl.searchParams.entries()) as Record<string, unknown>;
     // tagIds 可能是逗号分隔
     if (typeof params.tagIds === "string" && params.tagIds) {

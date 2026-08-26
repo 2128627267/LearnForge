@@ -16,6 +16,8 @@ import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 import { getLogger } from "@/lib/utils/logger";
 import { errorResponse } from "@/lib/utils/http-error";
+import { appendChangeLog } from "@/lib/sync/server-ops";
+import { authorizePluginCall } from "@/lib/plugins/permissions";
 
 const logger = getLogger("CardsConnectAPI");
 
@@ -72,6 +74,18 @@ async function loadLayout(): Promise<CanvasLayout> {
 
 export async function POST(request: NextRequest) {
   try {
+    // 插件身份校验（F5）：本端点必需 canvas:write；无 x-plugin-id 时直连放行
+    const auth = await authorizePluginCall(
+      prisma,
+      request,
+      "POST",
+      "/api/cards/connect"
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+    const auditSource = auth.context?.auditSource ?? "ai-batch";
+
     const body = await request.json();
     const parsed = ConnectSchema.safeParse(body);
     if (!parsed.success) {
@@ -143,6 +157,25 @@ export async function POST(request: NextRequest) {
       where: { id: CANVAS_LAYOUT_ID },
       update: { data: JSON.stringify(layout) },
       create: { id: CANVAS_LAYOUT_ID, data: JSON.stringify(layout) },
+    });
+
+    // 变更日志（F5 审计补充）：连线写入与 batch 通道一致落审计；
+    // 本端点 upsert 不推进 version，revision 取当前服务器值
+    const row = await prisma.canvasLayout.findUnique({
+      where: { id: CANVAS_LAYOUT_ID },
+      select: { version: true },
+    });
+    await appendChangeLog({
+      action: "connect",
+      revision: row?.version ?? 0,
+      nodeCount: layout.nodes.length,
+      edgeCount: layout.edges.length,
+      source: auditSource,
+      detail: {
+        created: createdEdges.length,
+        skipped: skipped.length,
+        invalid: invalid.length,
+      },
     });
 
     logger.info("创建画布连线", {

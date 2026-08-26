@@ -22,6 +22,7 @@ import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 import { getLogger } from "@/lib/utils/logger";
 import { appendChangeLog, snapshotCurrentLayout } from "@/lib/sync/server-ops";
+import { authorizePluginCall } from "@/lib/plugins/permissions";
 
 const logger = getLogger("CanvasLayoutAPI");
 
@@ -82,8 +83,19 @@ function conflictResponse(layout: { version: number; data: string }) {
   );
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // 插件身份校验（F5）：本端点必需 canvas:read；无 x-plugin-id 时直连放行
+    const auth = await authorizePluginCall(
+      prisma,
+      request,
+      "GET",
+      "/api/canvas-layout"
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const layout = await prisma.canvasLayout.findUnique({
       where: { id: CANVAS_LAYOUT_ID },
     });
@@ -106,6 +118,17 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    // 插件身份校验（F5）：本端点必需 canvas:write；无 x-plugin-id 时直连放行
+    const auth = await authorizePluginCall(
+      prisma,
+      request,
+      "PUT",
+      "/api/canvas-layout"
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
     const body = await request.json();
     const parsed = PutBodySchema.safeParse(body);
     if (!parsed.success) {
@@ -114,7 +137,9 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
-    const { canvas, baseRevision, source } = parsed.data;
+    const { canvas, baseRevision } = parsed.data;
+    // 审计来源优先级：插件身份（plugin:<name>） > 请求体声明（web/ai-batch 等）
+    const source = auth.context?.auditSource ?? parsed.data.source;
     const serialized = JSON.stringify(canvas);
 
     const current = await prisma.canvasLayout.findUnique({

@@ -1,0 +1,33 @@
+{
+  "name": "example-readonly-search",
+  "displayName": "示例：只读卡片搜索",
+  "description": "演示插件：仅声明 cards:read 权限，暴露一个搜索工具。可直接安装试用。",
+  "version": "1.0.0",
+  "author": "LearnForge 示例",
+  "permissions": ["cards:read"],
+  "tools": [
+    {
+      "name": "example_search_cards",
+      "description": "按关键词搜索学习卡片（只读）。返回标题、类型与状态。",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "description": "标题/内容关键词"
+          },
+          "limit": {
+            "type": "number",
+            "description": "返回数量上限（默认 50）"
+          }
+        },
+        "required": ["search"]
+      },
+      "endpoint": {
+        "method": "GET",
+        "url": "/api/cards"
+      },
+      "permissions": ["cards:read"]
+    }
+  ]
+}
