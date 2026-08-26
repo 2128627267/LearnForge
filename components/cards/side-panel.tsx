@@ -5,6 +5,11 @@ import { cn } from "@/lib/utils/cn";
 import { toast } from "@/components/shared/toaster";
 import type { CanvasState } from "@/lib/hooks/use-local-storage";
 import {
+  COLOR_CATEGORIES,
+  CARD_COLOR_THRESHOLD,
+  shouldShowColorLabels,
+} from "@/lib/cards/color-categories";
+import {
   Plus,
   Download,
   Upload,
@@ -17,6 +22,7 @@ import {
   Package,
   GraduationCap,
   Sparkles,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 
@@ -116,6 +122,10 @@ export function SidePanel({
   onRemoveTag,
   onClearSelection,
   onClearCanvas,
+  cardCount = 0,
+  colorCounts = new Map(),
+  selectedColor = null,
+  onSelectColor,
 }: {
   tags: TagInfo[];
   selectedTags: string[];
@@ -124,9 +134,17 @@ export function SidePanel({
   onRemoveTag: (name: string) => void;
   onClearSelection: () => void;
   onClearCanvas: () => void;
+  /** 画布卡片总数（用于阈值化显示颜色分类标签） */
+  cardCount?: number;
+  /** 各颜色分类的卡片数统计（Map<hex, count>） */
+  colorCounts?: Map<string, number>;
+  /** 当前按颜色筛选的选中色（null=未筛选） */
+  selectedColor?: string | null;
+  /** 切换颜色筛选（传 null 清除） */
+  onSelectColor?: (color: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"tools" | "tags">("tools");
+  const [tab, setTab] = useState<"tools" | "tags" | "colors">("tools");
   const [showHelp, setShowHelp] = useState(false);
   const [showAddTag, setShowAddTag] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -289,6 +307,17 @@ export function SidePanel({
           >
             标签 {tags.length > 0 && `(${tags.length})`}
           </button>
+          <button
+            onClick={() => setTab("colors")}
+            className={cn(
+              "flex-1 px-3 py-2.5 text-sm font-medium transition-colors",
+              tab === "colors"
+                ? "text-primary border-b-2 border-primary bg-primary/5"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
+            )}
+          >
+            颜色
+          </button>
         </div>
 
         {/* 内容区 */}
@@ -364,6 +393,121 @@ export function SidePanel({
                   })}
                 </div>
               </div>
+            </div>
+          ) : tab === "colors" ? (
+            <div className="space-y-3">
+              {/* 颜色筛选说明 */}
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                  <Palette className="w-3 h-3" />
+                  按颜色筛选
+                </p>
+                {selectedColor && (
+                  <button
+                    onClick={() => onSelectColor?.(null)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+
+              {/* 颜色筛选色块（始终可用） */}
+              <div className="grid grid-cols-4 gap-1.5">
+                <button
+                  onClick={() => onSelectColor?.(null)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 px-1 py-1.5 rounded-lg text-[10px] border transition-colors",
+                    !selectedColor
+                      ? "border-primary text-primary bg-primary/5"
+                      : "border-input text-muted-foreground hover:bg-accent"
+                  )}
+                  title="显示全部颜色"
+                >
+                  <span className="w-4 h-4 rounded-full border border-border bg-background flex items-center justify-center text-[8px] font-bold">
+                    ✕
+                  </span>
+                  全部
+                </button>
+                {COLOR_CATEGORIES.map((c) => {
+                  const active = selectedColor === c.hex;
+                  const count = colorCounts.get(c.hex.toLowerCase()) ?? 0;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => onSelectColor?.(active ? null : c.hex)}
+                      className={cn(
+                        "flex flex-col items-center gap-1 px-1 py-1.5 rounded-lg text-[10px] border transition-colors",
+                        active
+                          ? "border-primary bg-primary/5"
+                          : "border-input hover:bg-accent"
+                      )}
+                      title={`${c.name}色（${count} 张）`}
+                    >
+                      <span
+                        className="w-4 h-4 rounded-full"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                      <span className={active ? "text-primary" : "text-muted-foreground"}>
+                        {c.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 智能显示：卡片数超过阈值时显示分类统计标签 */}
+              {shouldShowColorLabels(cardCount) && (
+                <div className="pt-2 border-t border-border/40 space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    颜色分类（共 {cardCount} 张）
+                  </p>
+                  <div className="space-y-1">
+                    {COLOR_CATEGORIES.filter(
+                      (c) => (colorCounts.get(c.hex.toLowerCase()) ?? 0) > 0
+                    ).map((c) => {
+                      const count = colorCounts.get(c.hex.toLowerCase()) ?? 0;
+                      const ratio = cardCount > 0 ? count / cardCount : 0;
+                      const active = selectedColor === c.hex;
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => onSelectColor?.(active ? null : c.hex)}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-2 py-1 rounded-md transition-colors",
+                            active ? "bg-primary/10" : "hover:bg-accent"
+                          )}
+                          title={`筛选${c.name}色卡片`}
+                        >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: c.hex }}
+                          />
+                          <span className="text-xs flex-1 text-left">
+                            {c.name}
+                          </span>
+                          {/* 占比条 */}
+                          <span className="w-14 h-1.5 rounded-full bg-muted overflow-hidden">
+                            <span
+                              className="block h-full rounded-full transition-all"
+                              style={{
+                                width: `${Math.max(ratio * 100, 3)}%`,
+                                backgroundColor: c.hex,
+                              }}
+                            />
+                          </span>
+                          <span className="text-xs text-muted-foreground w-8 text-right">
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    卡片数超过 {CARD_COLOR_THRESHOLD} 时自动显示分类统计，保持界面简洁
+                  </p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">

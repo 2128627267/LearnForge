@@ -7,6 +7,7 @@ import { CardCanvas } from "@/components/cards/card-canvas";
 import { SidePanel, type TagInfo } from "@/components/cards/side-panel";
 import { useCanvasStorage } from "@/lib/hooks/use-local-storage";
 import { useCanvasServerSync } from "@/lib/hooks/use-canvas-server-sync";
+import { getColorCounts } from "@/lib/cards/color-categories";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -36,6 +37,7 @@ const ProjectMemoryPanel = dynamic(
 export default function CanvasPage() {
   const [canvas, setCanvas] = useCanvasStorage();
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
 
   // 防御性处理：canvas 可能因 localStorage 损坏为 null/undefined
@@ -76,6 +78,12 @@ export default function CanvasPage() {
     });
     return map;
   }, [safeCanvas.tags]);
+
+  /** 各颜色分类的卡片数统计（供 SidePanel 颜色标签显示） */
+  const colorCounts = useMemo(
+    () => getColorCounts(safeCanvas.nodes),
+    [safeCanvas.nodes]
+  );
 
   /** 切换标签筛选 */
   const toggleTag = useCallback((tag: string) => {
@@ -141,6 +149,7 @@ export default function CanvasPage() {
         setCanvas={setCanvas}
         selectedTags={selectedTags}
         tagColors={tagColors}
+        selectedColor={selectedColor}
       />
 
       {/* 空状态引导（UX 修复）：画布无卡片时提示创建入口（纯展示，不拦截画布交互） */}
@@ -167,6 +176,10 @@ export default function CanvasPage() {
         onRemoveTag={removeTag}
         onClearSelection={() => setSelectedTags([])}
         onClearCanvas={handleClear}
+        cardCount={safeCanvas.nodes.length}
+        colorCounts={colorCounts}
+        selectedColor={selectedColor}
+        onSelectColor={setSelectedColor}
       />
 
       {/* 项目记忆抽屉（AI 提问上下文来源） */}

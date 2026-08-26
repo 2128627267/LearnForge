@@ -33,6 +33,7 @@ import { CardSearch } from "./card-search";
 import { AlignmentToolbar } from "./alignment-toolbar";
 import { useUndoableCanvas } from "@/lib/hooks/use-undoable-canvas";
 import type { CanvasState } from "@/lib/hooks/use-local-storage";
+import { getEffectiveCardColor } from "@/lib/cards/color-categories";
 import {
   exportWordTree,
   exportToLearnPack,
@@ -97,6 +98,8 @@ interface CardCanvasProps {
   selectedTags: string[];
   /** 标签名到颜色的映射（W3 修复：统一标签颜色） */
   tagColors?: Record<string, string>;
+  /** 按颜色筛选的选中色（null=不筛选） */
+  selectedColor?: string | null;
 }
 
 export function CardCanvas({
@@ -104,6 +107,7 @@ export function CardCanvas({
   setCanvas,
   selectedTags,
   tagColors = {},
+  selectedColor = null,
 }: CardCanvasProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   /** React Flow 实例引用（新建卡片 / AI 生成节点时获取视口中心，确保新卡片可见） */
@@ -759,7 +763,8 @@ export function CardCanvas({
    */
   const displayNodes = useMemo(() => {
     // 无任何过滤条件时直接返回原节点
-    if (selectedTags.length === 0 && !searchMatchIds) return nodes;
+    if (selectedTags.length === 0 && !selectedColor && !searchMatchIds)
+      return nodes;
 
     return nodes.map((n) => {
       // 标签匹配
@@ -768,10 +773,16 @@ export function CardCanvas({
         selectedTags.length === 0 ||
         selectedTags.some((t) => nodeTags.includes(t));
 
+      // 颜色匹配（按有效分类色）
+      const colorMatched =
+        !selectedColor ||
+        getEffectiveCardColor(n.data as FreeCardData).toLowerCase() ===
+          selectedColor.toLowerCase();
+
       // 搜索匹配
       const searchMatched = !searchMatchIds || searchMatchIds.has(n.id);
 
-      const matched = tagMatched && searchMatched;
+      const matched = tagMatched && colorMatched && searchMatched;
 
       // 搜索匹配时额外添加高亮 ring
       const searchHighlight =
@@ -787,7 +798,7 @@ export function CardCanvas({
           .join(" "),
       } as Node<FreeCardData>;
     });
-  }, [nodes, selectedTags, searchMatchIds]);
+  }, [nodes, selectedTags, selectedColor, searchMatchIds]);
 
   return (
     <ReactFlowProvider>
