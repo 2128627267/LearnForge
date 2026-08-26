@@ -21,6 +21,10 @@ import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 import { getLogger } from "@/lib/utils/logger";
 import { errorResponse } from "@/lib/utils/http-error";
+import {
+  appendChangeLog,
+  snapshotCurrentLayout,
+} from "@/lib/sync/server-ops";
 
 const logger = getLogger("CardsBatchAPI");
 
@@ -100,13 +104,22 @@ async function loadLayout(): Promise<CanvasLayout> {
   }
 }
 
-/** 保存画布布局 */
-async function saveLayout(layout: CanvasLayout): Promise<void> {
+/**
+ * 保存画布布局（F3 改造：version+1 递增 revision，保证乐观锁生效）
+ * 返回写入后的服务器 revision
+ */
+async function saveLayout(layout: CanvasLayout): Promise<number> {
+  const current = await prisma.canvasLayout.findUnique({
+    where: { id: CANVAS_LAYOUT_ID },
+  });
+  const nextRevision = (current?.version ?? 0) + 1;
+  const serialized = JSON.stringify(layout);
   await prisma.canvasLayout.upsert({
     where: { id: CANVAS_LAYOUT_ID },
-    update: { data: JSON.stringify(layout) },
-    create: { id: CANVAS_LAYOUT_ID, data: JSON.stringify(layout) },
+    update: { data: serialized, version: nextRevision },
+    create: { id: CANVAS_LAYOUT_ID, data: serialized, version: nextRevision },
   });
+  return nextRevision;
 }
 
 /** 生成节点 id（前端画布节点同格式） */
@@ -201,16 +214,35 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    // 4. 合并保存
+    // 4. 合并保存（F3：覆盖前快照 + version 递增 + 变更日志）
     layout.nodes.push(...createdNodes);
     layout.edges.push(...createdEdges);
-    await saveLayout(layout);
+    if (createdNodes.length > 0 || createdEdges.length > 0) {
+      await snapshotCurrentLayout("auto");
+    }
+    const revision = await saveLayout(layout);
+
+    // 变更日志（AI 批量写入通道，source=ai-batch）
+    await appendChangeLog({
+      action: "batch-create",
+      revision,
+      nodeCount: layout.nodes.length,
+      edgeCount: layout.edges.length,
+      source: "ai-batch",
+      detail: {
+        created: createdNodes.length,
+        skipped: skipped.length,
+        edges: createdEdges.length,
+        invalidRelations: invalidRelations.length,
+      },
+    });
 
     logger.info("批量创建卡片", {
       created: createdNodes.length,
       skipped: skipped.length,
       edges: createdEdges.length,
       invalidRelations: invalidRelations.length,
+      revision,
     });
 
     return NextResponse.json({

@@ -5,6 +5,7 @@ import { Brain } from "lucide-react";
 import dynamic from "next/dynamic";
 import { CardCanvas } from "@/components/cards/card-canvas";
 import { SidePanel, type TagInfo } from "@/components/cards/side-panel";
+import { SaveStatusIndicator } from "@/components/cards/save-status-indicator";
 import { useCanvasStorage } from "@/lib/hooks/use-local-storage";
 import { useCanvasServerSync } from "@/lib/hooks/use-canvas-server-sync";
 import { getColorCounts } from "@/lib/cards/color-categories";
@@ -44,7 +45,8 @@ export default function CanvasPage() {
   const safeCanvas = canvas ?? { nodes: [], edges: [], tags: [] };
 
   // 服务器端持久化同步（SQLite），localStorage 仅作缓存
-  useCanvasServerSync(safeCanvas, (value) => setCanvas(value));
+  // F3 改造：返回保存状态（完整性监控）+ 手动重试
+  const sync = useCanvasServerSync(safeCanvas, (value) => setCanvas(value));
 
   /**
    * 从画布节点中提取所有标签及其使用频率
@@ -144,6 +146,9 @@ export default function CanvasPage() {
 
   return (
     <div className="relative h-full w-full overflow-hidden">
+      {/* 保存状态指示器（F3 完整性监控：待保存/保存中/已保存/失败重试） */}
+      <SaveStatusIndicator status={sync.status} retry={sync.retry} />
+
       {/* 画布全屏（S2 修复：canvas/setCanvas 单一数据源下传） */}
       <CardCanvas
         canvas={safeCanvas}
