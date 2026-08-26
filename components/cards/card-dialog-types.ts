@@ -17,7 +17,17 @@ export interface CardDialogPayload {
   width: number;
 }
 
-/** AI 批量创建节点的描述（可带 sourceId 与关系线标签） */
+/** 批量创建时的连线关系（支持任意节点间连线） */
+export interface CreateRelation {
+  /** 起点：本批次其他 item 的索引字符串（如 "0"）或画布已有节点 id；缺省用 sourceId */
+  from?: string;
+  /** 终点：本批次 item 索引（如 "0"）或画布已有节点 id；缺省为当前创建的节点 */
+  to?: string;
+  /** 关系线标签（如"延伸拓展"、"派生"） */
+  label?: string;
+}
+
+/** AI 批量创建节点的描述（可带 sourceId 与任意连线关系） */
 export interface CreateNodeItem {
   data: Partial<FreeCardData>;
   position?: { x: number; y: number };
@@ -25,4 +35,6 @@ export interface CreateNodeItem {
   sourceId?: string;
   /** 关系线标签（如"延伸拓展"） */
   relationLabel?: string;
+  /** 任意连线关系（from/to 支持本批次索引或已有节点 id） */
+  relations?: CreateRelation[];
 }

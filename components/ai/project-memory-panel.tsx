@@ -36,20 +36,20 @@ import {
 
 /** 记忆类型元信息 */
 const MEMORY_TYPES: Record<string, { label: string; color: string }> = {
-  fact: { label: "事实", color: "bg-blue-100 text-blue-800" },
-  preference: { label: "偏好", color: "bg-purple-100 text-purple-800" },
-  context: { label: "上下文", color: "bg-gray-100 text-gray-800" },
-  summary: { label: "摘要", color: "bg-green-100 text-green-800" },
+  fact: { label: "事实", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200" },
+  preference: { label: "偏好", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200" },
+  context: { label: "上下文", color: "bg-gray-100 text-gray-800 dark:bg-gray-800/60 dark:text-gray-300" },
+  summary: { label: "摘要", color: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200" },
 };
 
 /** 作用域元信息（用于显示标签与筛选） */
 const SCOPE_META: Record<string, { label: string; color: string; icon?: string }> = {
-  global: { label: "全局", color: "bg-slate-100 text-slate-700" },
-  stats: { label: "统计", color: "bg-cyan-100 text-cyan-800" },
-  canvas: { label: "画布", color: "bg-indigo-100 text-indigo-800" },
-  english: { label: "英语", color: "bg-emerald-100 text-emerald-800" },
-  learn: { label: "学习", color: "bg-amber-100 text-amber-800" },
-  qa: { label: "问答", color: "bg-rose-100 text-rose-800" },
+  global: { label: "全局", color: "bg-slate-100 text-slate-700 dark:bg-slate-800/60 dark:text-slate-300" },
+  stats: { label: "统计", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-200" },
+  canvas: { label: "画布", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200" },
+  english: { label: "英语", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200" },
+  learn: { label: "学习", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" },
+  qa: { label: "问答", color: "bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200" },
 };
 
 /** 来源元信息 */

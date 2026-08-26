@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import { invalidateMemoryCache } from "@/lib/ai/memory-cache";
 
 const logger = getLogger("ProjectMemoryAPI");
@@ -67,11 +68,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ memories });
   } catch (err) {
-    logger.error("获取项目记忆列表失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "获取项目记忆失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "获取项目记忆列表失败", err);
   }
 }
 
@@ -127,11 +124,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ memory });
   } catch (err) {
-    logger.error("创建项目记忆失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "创建项目记忆失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "创建项目记忆失败", err);
   }
 }
 
@@ -205,11 +198,7 @@ export async function PUT(request: NextRequest) {
     });
     return NextResponse.json({ memory });
   } catch (err) {
-    logger.error("更新项目记忆失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "更新项目记忆失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "更新项目记忆失败", err);
   }
 }
 
@@ -255,10 +244,6 @@ export async function DELETE(request: NextRequest) {
     logger.info("删除项目记忆", { id });
     return NextResponse.json({ success: true });
   } catch (err) {
-    logger.error("删除项目记忆失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "删除项目记忆失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "删除项目记忆失败", err);
   }
 }

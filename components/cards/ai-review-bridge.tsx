@@ -174,7 +174,16 @@ export function AiReviewBridge({
       footer={
         items && items.length > 0 ? (
           <>
-            <Button variant="outline" onClick={onClose}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!importing) {
+                  onClose();
+                  setItems(null);
+                  setRaw("");
+                }
+              }}
+            >
               取消
             </Button>
             <Button onClick={confirmImport} disabled={importing}>

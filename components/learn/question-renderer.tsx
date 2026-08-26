@@ -185,8 +185,10 @@ function AnswerInput({
           autoCorrect="off"
           spellCheck={false}
           className={cn(
-            state === "correct" && "border-green-500 bg-green-50 text-green-800",
-            state === "wrong" && "border-red-500 bg-red-50 text-red-800"
+            state === "correct" &&
+              "border-green-500 bg-green-50 text-green-800 dark:bg-green-950/50 dark:text-green-300",
+            state === "wrong" &&
+              "border-red-500 bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300"
           )}
         />
         {wordLength ? (
@@ -605,8 +607,10 @@ function MultiChoiceView(props: QuestionRendererProps) {
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
                 !feedback && isSelected && "border-primary bg-primary/10",
                 !feedback && !isSelected && "border-input hover:bg-accent",
-                showCorrect && "border-green-500 bg-green-50 text-green-800",
-                showWrong && "border-red-500 bg-red-50 text-red-800",
+                showCorrect &&
+                  "border-green-500 bg-green-50 text-green-800 dark:bg-green-950/50 dark:text-green-300",
+                showWrong &&
+                  "border-red-500 bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-300",
                 disabled && !feedback && "opacity-60 cursor-not-allowed"
               )}
             >

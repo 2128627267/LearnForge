@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import { isEnvVarReference, isFileLink } from "@/lib/config/env-resolver";
 
 const logger = getLogger("ModelsAPI");
@@ -36,6 +37,22 @@ const ALLOWED_PROVIDERS = [
   "local",
   "custom",
 ];
+
+/** 允许的 API 协议格式 */
+const ALLOWED_API_FORMATS = [
+  "openai-chat",
+  "openai-responses",
+  "anthropic",
+  "gemini",
+  "ollama",
+  "custom",
+];
+
+/** 旧值兼容归一化：openai → openai-chat */
+function normalizeApiFormat(value: string): string {
+  if (value === "openai") return "openai-chat";
+  return ALLOWED_API_FORMATS.includes(value) ? value : "openai-chat";
+}
 
 /**
  * 更新模型配置
@@ -85,8 +102,28 @@ export async function PUT(
       data.provider = body.provider;
     }
 
+    if (typeof body.apiFormat === "string") {
+      const raw = body.apiFormat;
+      if (
+        raw !== "openai" &&
+        !ALLOWED_API_FORMATS.includes(raw)
+      ) {
+        return NextResponse.json(
+          { error: `apiFormat 取值非法` },
+          { status: 400 }
+        );
+      }
+      data.apiFormat = normalizeApiFormat(raw);
+    }
+
     if (typeof body.modelName === "string") data.modelName = body.modelName;
-    if (typeof body.apiKey === "string") data.apiKey = body.apiKey;
+    if (typeof body.apiKey === "string") {
+      // 安全：脱敏占位（含 ****）回传时忽略，避免把真实 Key 覆盖为占位（与 /api/settings/ai 一致）
+      const key = body.apiKey;
+      const isPlaceholder =
+        !!key && !isEnvVarReference(key) && !isFileLink(key) && key.includes("****");
+      if (!isPlaceholder) data.apiKey = key;
+    }
     if (typeof body.apiUrl === "string") data.apiUrl = body.apiUrl;
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
     if (typeof body.order === "number") data.order = body.order;
@@ -117,6 +154,7 @@ export async function PUT(
       name: updated.name,
       category: updated.category,
       provider: updated.provider,
+      apiFormat: normalizeApiFormat(updated.apiFormat),
       modelName: updated.modelName,
       apiKey: maskedKey,
       apiUrl: updated.apiUrl,
@@ -127,11 +165,7 @@ export async function PUT(
       updatedAt: updated.updatedAt.toISOString(),
     });
   } catch (err) {
-    logger.error("更新模型配置失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "更新模型配置失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "更新模型配置失败", err);
   }
 }
 
@@ -173,10 +207,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, id });
   } catch (err) {
-    logger.error("删除模型配置失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "删除模型配置失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "删除模型配置失败", err);
   }
 }

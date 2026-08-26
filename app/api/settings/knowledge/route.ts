@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("SettingsAPI");
 
@@ -102,11 +103,7 @@ export async function GET() {
       total: docs.length,
     });
   } catch (err) {
-    logger.error("查询知识库列表失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "查询知识库列表失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "查询知识库列表失败", err);
   }
 }
 
@@ -183,11 +180,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(toDTO(doc), { status: 201 });
   } catch (err) {
-    logger.error("创建知识库文档失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "创建知识库文档失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "创建知识库文档失败", err);
   }
 }
 
@@ -222,10 +215,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ id, deleted: true });
   } catch (err) {
-    logger.error("删除知识库文档失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "删除知识库文档失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "删除知识库文档失败", err);
   }
 }

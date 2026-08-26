@@ -25,14 +25,14 @@ export function MainNav() {
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
-        <Link href="/" className="mr-6 flex items-center space-x-2">
+        <Link href="/" className="mr-6 flex items-center space-x-2 flex-shrink-0">
           <span className="font-bold text-lg">LearnForge</span>
           <span className="text-xs text-muted-foreground hidden sm:inline">
             AI 学习工具
           </span>
         </Link>
 
-        <nav className="flex items-center space-x-1 lg:space-x-2 overflow-x-auto">
+        <nav className="flex items-center space-x-1 lg:space-x-2 overflow-x-auto min-w-0">
           {navItems.map((item) => {
             const active = pathname.startsWith(item.href);
             return (
@@ -46,19 +46,20 @@ export function MainNav() {
                     : "text-muted-foreground hover:text-foreground hover:bg-accent"
                 )}
               >
-                <span className="mr-1">{item.icon}</span>
+                <span className="mr-1" aria-hidden="true">{item.icon}</span>
                 {item.label}
               </Link>
             );
           })}
         </nav>
 
-        <div className="ml-auto flex items-center space-x-2">
+        <div className="ml-auto flex items-center space-x-2 flex-shrink-0">
           {/* 主题切换按钮：亮色/暗色模式切换 */}
           <ThemeToggle />
+          {/* 窄屏隐藏「+打开画布」（导航中已有画布入口，避免挤压） */}
           <Link
             href="/canvas"
-            className="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
+            className="hidden sm:inline-flex px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
           >
             + 打开画布
           </Link>

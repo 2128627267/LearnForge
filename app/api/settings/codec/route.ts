@@ -35,6 +35,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import {
   encode,
   decode,
@@ -76,11 +77,7 @@ export async function POST(request: NextRequest) {
     // 编码模式：JSON 请求体
     return handleEncode(request);
   } catch (err) {
-    logger.error("编解码失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "编解码失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "编解码失败", err);
   }
 }
 

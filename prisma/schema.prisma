@@ -637,6 +637,8 @@ model AIModelConfig {
   category   String
   /// 提供商：openai | anthropic | deepseek | local | custom
   provider   String
+  /// API 协议格式：openai | anthropic | gemini | ollama | custom（默认 openai 兼容）
+  apiFormat  String   @default("openai")
   /// 模型标识（如 "gpt-4o-mini"、"text-embedding-3-small"）
   modelName  String
   /// API Key（支持 ${ENV_VAR} 和 file:// 语法，由 env-resolver 解析）
@@ -768,4 +770,17 @@ model QAMessage {
   conversation QAConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+// ==================== 画布持久化 ====================
+
+/// 画布布局持久化（nodes/edges/tags/viewport，单行 upsert）
+/// 数据落 SQLite（*.db 已 gitignore），localStorage 仅作缓存
+model CanvasLayout {
+  id        String   @id // 固定 "default"（单机单用户）
+  /// CanvasState 序列化 JSON
+  data      String
+  /// 数据格式版本（未来迁移用）
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
 }

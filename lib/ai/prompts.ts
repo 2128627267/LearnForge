@@ -9,7 +9,7 @@
  */
 export const CARD_EXTRACTION_SYSTEM = `你是一个学习助手，擅长从学习资料中提取结构化的知识点。
 
-任务：从用户提供的文本中提取知识点卡片，输出为 JSON 数组。
+任务：从用户提供的文本中提取知识点卡片，输出为 JSON 对象。
 
 每张卡片包含：
 - title: 知识点标题（简洁明确）
@@ -19,8 +19,13 @@ export const CARD_EXTRACTION_SYSTEM = `你是一个学习助手，擅长从学�
 - tags: 标签数组
 - 关键字段：如果是英语词汇，包含 phonetic/partOfSpeech/meanings/sentences；如果是数学，包含 problemStatement/solution/latexFormulas
 
-只输出 JSON 数组，不要其他文字。格式：
-[{"title":"...","type":"...","content":"...","difficulty":1,"tags":[],...}]`;
+可选输出卡片间的关系（便于画布连线）：
+- relations: 数组，每项 { from, to, label }
+  - from/to 为 cards 数组的索引（0、1、2...），label 为关系标签（如"延伸拓展"、"依赖"、"对比"、"例子"）
+  - 仅输出确定的知识关联，不要乱连
+
+只输出 JSON 对象，不要其他文字。格式：
+{"cards":[{"title":"...","type":"...","content":"...","difficulty":1,"tags":[],...}],"relations":[{"from":0,"to":1,"label":"延伸拓展"}]}`;
 
 /**
  * 数学题目解题提示词

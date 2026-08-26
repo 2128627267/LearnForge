@@ -483,10 +483,12 @@ async function selectMode(
   cardId: string,
   sortedRecent: RecentAnswer[]
 ): Promise<LearnModeId> {
-  // 查该 card 的所有 ModeHistory（按时间正序，便于"错误后下次"判定）
+  // 查该 card 的 ModeHistory（按时间正序，便于"错误后下次"判定）
+  // 性能：仅取最近 100 条即可满足 acc/efficiency 统计窗口（高频词历史可达上千条）
   const histories = await prisma.modeHistory.findMany({
     where: { cardId },
     orderBy: { createdAt: "asc" },
+    take: 100,
   });
 
   // 计算各 mode 的正确率与 efficiency

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveChatProvider } from "@/lib/ai";
 import { Prompts } from "@/lib/ai";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("AI-GenerateCards");
 
@@ -69,10 +70,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
-    logger.error("AI 卡片生成失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "AI 生成失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "AI 卡片生成失败", err);
   }
 }

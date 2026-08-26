@@ -2,11 +2,21 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Brain } from "lucide-react";
+import dynamic from "next/dynamic";
 import { CardCanvas } from "@/components/cards/card-canvas";
 import { SidePanel, type TagInfo } from "@/components/cards/side-panel";
-import { ProjectMemoryPanel } from "@/components/ai/project-memory-panel";
 import { useCanvasStorage } from "@/lib/hooks/use-local-storage";
+import { useCanvasServerSync } from "@/lib/hooks/use-canvas-server-sync";
 import { cn } from "@/lib/utils/cn";
+
+/**
+ * 项目记忆面板（P1 性能优化）：
+ * 抽屉式按需打开，动态导入避免其依赖进入画布首屏 bundle。
+ */
+const ProjectMemoryPanel = dynamic(
+  () => import("@/components/ai/project-memory-panel").then((m) => m.ProjectMemoryPanel),
+  { ssr: false, loading: () => null }
+);
 
 /**
  * 自由卡片画布页面
@@ -30,6 +40,9 @@ export default function CanvasPage() {
 
   // 防御性处理：canvas 可能因 localStorage 损坏为 null/undefined
   const safeCanvas = canvas ?? { nodes: [], edges: [], tags: [] };
+
+  // 服务器端持久化同步（SQLite），localStorage 仅作缓存
+  useCanvasServerSync(safeCanvas, (value) => setCanvas(value));
 
   /**
    * 从画布节点中提取所有标签及其使用频率
@@ -130,6 +143,21 @@ export default function CanvasPage() {
         tagColors={tagColors}
       />
 
+      {/* 空状态引导（UX 修复）：画布无卡片时提示创建入口（纯展示，不拦截画布交互） */}
+      {safeCanvas.nodes.length === 0 && (
+        <div className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center">
+          <div className="pointer-events-none text-center bg-card/80 backdrop-blur border border-border rounded-xl shadow-lg px-8 py-6 max-w-sm mx-4">
+            <div className="text-3xl mb-3">🎨</div>
+            <p className="font-medium text-foreground">画布还是空的</p>
+            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+              点击右侧圆形按钮打开面板，添加第一张知识卡片；
+              <br />
+              或在卡片上双击新建、拖动排布、连线建立关联。
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 右侧浮动面板（圆形伸缩按钮控制） */}
       <SidePanel
         tags={tagInfos}
@@ -156,7 +184,7 @@ export default function CanvasPage() {
       </button>
 
       {memoryOpen && (
-        <div className="fixed right-4 top-1/2 -translate-y-1/2 z-20 w-80 mr-16 bg-card border rounded-xl shadow-2xl max-h-[70vh] overflow-y-auto">
+        <div className="fixed right-4 top-1/2 -translate-y-1/2 z-20 w-80 max-w-[calc(100vw-2.5rem)] mr-16 bg-card border rounded-xl shadow-2xl max-h-[70vh] overflow-y-auto">
           <ProjectMemoryPanel />
         </div>
       )}

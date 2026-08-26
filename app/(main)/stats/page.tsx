@@ -212,6 +212,8 @@ export default async function StatsPage() {
   // 时间锚点计算
   // ------------------------------------------------------------------
   const now = new Date();
+  /** 一天的毫秒数 */
+  const DAY_MS = 24 * 60 * 60 * 1000;
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
 
@@ -288,9 +290,11 @@ export default async function StatsPage() {
       select: { createdAt: true, correct: true },
       orderBy: { createdAt: "asc" },
     }),
-    // 14. 全量答题记录的日期（用于计算当前/最长连续学习天数）
-    // 仅取 createdAt 字段，按升序返回；突破原 30 天上限，支持任意长度连续
+    // 14. 答题记录日期（用于计算当前/最长连续学习天数）
+    // 性能：限制最近 5 年窗口（连续天数计算只需回溯到最近一次断档），
+    // 避免全量拉取历史答题记录（数据包上万条时降低加载时间与传输量）
     prisma.modeHistory.findMany({
+      where: { createdAt: { gte: new Date(now.getTime() - 5 * 365 * DAY_MS) } },
       select: { createdAt: true },
       orderBy: { createdAt: "asc" },
     }),

@@ -19,6 +19,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { clamp01, sigmoid } from "@/lib/learning/types";
 import { getLogger } from "@/lib/utils/logger";
+import type { Prisma } from "@prisma/client";
 
 const logger = getLogger("FeatureEngine");
 
@@ -28,6 +29,35 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 /** 响应时长归一化基准：500ms 起点，5000ms 跨度映射到 [0,1] */
 const RESPONSE_NORM_BASE = 500;
 const RESPONSE_NORM_SPAN = 5000;
+
+/** 全库最大 ImportLayout 计数缓存 TTL（毫秒）：导入频率归一化的分母 */
+const MAX_LAYOUT_CACHE_TTL_MS = 60_000;
+
+/**
+ * 全库 ImportLayout 按 cardId 分组的最大计数缓存。
+ * 该值只在导入数据包时变化，而 recalc 位于每次答题的热路径上，
+ * 全表 groupBy 聚合在 SQLite 无法走索引，故加 TTL 缓存避免每次答题全表扫描。
+ */
+let maxLayoutCountCache: { value: number; expiresAt: number } | null = null;
+
+async function getMaxLayoutCount(
+  tx: Prisma.TransactionClient
+): Promise<number> {
+  const now = Date.now();
+  if (maxLayoutCountCache && maxLayoutCountCache.expiresAt > now) {
+    return maxLayoutCountCache.value;
+  }
+  const maxLayoutGroup = await tx.importLayout.groupBy({
+    by: ["cardId"],
+    where: { cardId: { not: null } },
+    _count: { cardId: true },
+    orderBy: { _count: { cardId: "desc" } },
+    take: 1,
+  });
+  const value = maxLayoutGroup[0]?._count.cardId ?? 0;
+  maxLayoutCountCache = { value, expiresAt: now + MAX_LAYOUT_CACHE_TTL_MS };
+  return value;
+}
 
 /**
  * 特征引擎：负责 WordProfile 时序属性与遗忘曲线的统一重算。
@@ -78,15 +108,8 @@ export class FeatureEngine {
         // 该 card 的 ImportLayout 计数（导入频率归一化的分子）
         const cardLayoutCount = await tx.importLayout.count({ where: { cardId } });
         // 全库 ImportLayout 按 cardId 分组的最大计数（导入频率归一化的分母）
-        // 使用 groupBy + take:1 仅取最大组，避免拉取全表
-        const maxLayoutGroup = await tx.importLayout.groupBy({
-          by: ["cardId"],
-          where: { cardId: { not: null } },
-          _count: { cardId: true },
-          orderBy: { _count: { cardId: "desc" } },
-          take: 1,
-        });
-        const maxLayoutCount = maxLayoutGroup[0]?._count.cardId ?? 0;
+        // TTL 缓存（60s）：该值仅随导入变化，避免每次答题执行全表聚合
+        const maxLayoutCount = await getMaxLayoutCount(tx);
 
         // 当前 WordProfile（含历史 SM-2 参数）
         const profile = await tx.wordProfile.findUnique({ where: { cardId } });

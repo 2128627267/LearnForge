@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("TaskBindingsAPI");
 
@@ -165,11 +166,7 @@ export async function GET() {
       total: records.length,
     });
   } catch (err) {
-    logger.error("读取任务绑定列表失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "读取任务绑定列表失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "读取任务绑定列表失败", err);
   }
 }
 
@@ -291,10 +288,6 @@ export async function PUT(request: NextRequest) {
       total: results.length,
     });
   } catch (err) {
-    logger.error("更新任务绑定失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "更新任务绑定失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "更新任务绑定失败", err);
   }
 }

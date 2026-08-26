@@ -21,7 +21,6 @@ import {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { FreeCardNode, type FreeCardData } from "./free-card-node";
-import { CardDialog } from "./card-dialog";
 import { AiReviewBridge } from "./ai-review-bridge";
 import type { CardDialogState } from "./card-dialog-types";
 import type { CardDialogPayload, CreateNodeItem } from "./card-dialog-types";
@@ -43,6 +42,17 @@ import {
 import { toast } from "@/components/shared/toaster";
 import { Undo2, Redo2, Copy, ClipboardPaste } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import dynamic from "next/dynamic";
+
+/**
+ * 卡片对话框（P1 性能优化）：
+ * 动态导入以将 Tiptap 富文本编辑器与 AI 面板移出画布页首屏 bundle，
+ * 仅在用户打开对话框时按需加载。
+ */
+const CardDialog = dynamic(
+  () => import("./card-dialog").then((m) => m.CardDialog),
+  { ssr: false, loading: () => null }
+);
 
 /**
  * 卡片画布组件
@@ -228,6 +238,9 @@ export function CardCanvas({
     []
   );
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  // 保持 nodesRef 最新（供 handleCreateNodes 解析已有节点 id，避免回调依赖 nodes 频繁重建）
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
   // 保持 setNodesRef / setEdgesRef 最新（供注入回调内部使用）
@@ -396,7 +409,8 @@ export function CardCanvas({
 
   /**
    * AI 批量创建节点（生成/扩展 Tab）
-   * 支持从 sourceId 创建关系线
+   * 支持从 sourceId 创建关系线，以及 items.relations 任意连线关系
+   * （from/to 支持本批次索引字符串或画布已有节点 id，缺省引用当前卡片）
    */
   const handleCreateNodes = useCallback(
     (items: CreateNodeItem[]) => {
@@ -411,8 +425,10 @@ export function CardCanvas({
         };
         return {
           id,
+          index: i,
           sourceId: it.sourceId,
           relationLabel: it.relationLabel,
+          relations: it.relations,
           node: injectOnUpdate({
             id,
             type: "freeCard",
@@ -428,19 +444,52 @@ export function CardCanvas({
           }),
         };
       });
-      setNodes((nds) => [...nds, ...created.map((c) => c.node)]);
-      const newEdges = created
-        .filter((c) => c.sourceId)
-        .map((c) =>
-          injectOnEdgeUpdate({
-            id: `edge-${baseId}-${c.id}`,
-            source: c.sourceId!,
+      const createdIds = new Map(created.map((c) => [c.id, c]));
+
+      // 解析连线引用：本批次索引（"0"）或已有节点 id
+      const resolveRef = (ref: string, fallback?: string): string | null => {
+        const trimmed = ref.trim();
+        const byIndex = createdIds.get(`card-${baseId}-${trimmed}`);
+        if (byIndex) return byIndex.id;
+        if (createdIds.has(trimmed)) return trimmed;
+        if (nodesRef.current.some((n) => n.id === trimmed)) return trimmed;
+        return fallback ?? null;
+      };
+
+      // 收集连线：优先 items.relations，其次兼容 sourceId+relationLabel
+      const pendingEdges: Array<{ source: string; target: string; label: string }> = [];
+      for (const c of created) {
+        const fallbackSource = c.sourceId
+          ? resolveRef(c.sourceId)
+          : null;
+        if (c.relations && c.relations.length > 0) {
+          for (const rel of c.relations) {
+            const source = resolveRef(rel.from ?? "", fallbackSource ?? c.sourceId ?? "");
+            const target = resolveRef(rel.to ?? "", c.id);
+            if (source && target && source !== target) {
+              pendingEdges.push({ source, target, label: rel.label ?? "" });
+            }
+          }
+        } else if (fallbackSource && fallbackSource !== c.id) {
+          pendingEdges.push({
+            source: fallbackSource,
             target: c.id,
-            data: { label: c.relationLabel ?? "" },
+            label: c.relationLabel ?? "",
+          });
+        }
+      }
+
+      setNodes((nds) => [...nds, ...created.map((c) => c.node)]);
+      if (pendingEdges.length > 0) {
+        const newEdges = pendingEdges.map((e, i) =>
+          injectOnEdgeUpdate({
+            id: `edge-${baseId}-${i}`,
+            source: e.source,
+            target: e.target,
+            data: { label: e.label },
             ...defaultEdgeOptions,
           } as Edge<FreeCardEdgeData>)
         );
-      if (newEdges.length > 0) {
         setEdges((eds) => [...eds, ...newEdges]);
       }
     },
@@ -500,7 +549,12 @@ export function CardCanvas({
   /**
    * 通过 window 自定义事件暴露 add-card/export/import
    * canvas:add-card 事件打开新建卡片对话框；export/import 供 SidePanel 调用
+   *
+   * 性能优化（P4）：处理器经 eventHandlersRef 间接调用，
+   * 监听器仅注册一次（空依赖），避免拖拽时 nodes 每帧变化导致 15 个监听器反复重挂。
    */
+  const eventHandlersRef = useRef<Record<string, (e: Event) => void>>({});
+
   useEffect(() => {
     const handleAdd = () => openCreateDialog();
     const handleExport = () => {
@@ -644,39 +698,56 @@ export function CardCanvas({
       setBridgeOpen(true);
     };
 
-    window.addEventListener("canvas:add-card", handleAdd);
-    window.addEventListener("canvas:export", handleExport);
-    window.addEventListener("canvas:import", handleImport);
-    window.addEventListener("canvas:export-tree", handleExportTree);
-    window.addEventListener("canvas:export-pack", handleExportPack);
-    window.addEventListener("canvas:import-learn", handleImportLearn);
-    window.addEventListener("canvas:undo", handleUndo);
-    window.addEventListener("canvas:redo", handleRedo);
-    window.addEventListener("canvas:copy", handleCopy);
-    window.addEventListener("canvas:paste", handlePaste);
-    window.addEventListener("canvas:clear", handleClear);
-    window.addEventListener("canvas:jump-to-card", handleJumpToCard);
-    window.addEventListener("canvas:edit-card", handleEditCard);
-    window.addEventListener("canvas:ai-card", handleAiCard);
-    window.addEventListener("canvas:ai-bridge", handleAiBridge);
-    return () => {
-      window.removeEventListener("canvas:add-card", handleAdd);
-      window.removeEventListener("canvas:export", handleExport);
-      window.removeEventListener("canvas:import", handleImport);
-      window.removeEventListener("canvas:export-tree", handleExportTree);
-      window.removeEventListener("canvas:export-pack", handleExportPack);
-      window.removeEventListener("canvas:import-learn", handleImportLearn);
-      window.removeEventListener("canvas:undo", handleUndo);
-      window.removeEventListener("canvas:redo", handleRedo);
-      window.removeEventListener("canvas:copy", handleCopy);
-      window.removeEventListener("canvas:paste", handlePaste);
-      window.removeEventListener("canvas:clear", handleClear);
-      window.removeEventListener("canvas:jump-to-card", handleJumpToCard);
-      window.removeEventListener("canvas:edit-card", handleEditCard);
-      window.removeEventListener("canvas:ai-card", handleAiCard);
-      window.removeEventListener("canvas:ai-bridge", handleAiBridge);
+    // 统一保存最新处理器供事件注册 effect 使用
+    eventHandlersRef.current = {
+      add: handleAdd,
+      export: handleExport,
+      import: handleImport,
+      exportTree: handleExportTree,
+      exportPack: handleExportPack,
+      importLearn: handleImportLearn,
+      undo: handleUndo,
+      redo: handleRedo,
+      copy: handleCopy,
+      paste: handlePaste,
+      clear: handleClear,
+      jumpToCard: handleJumpToCard,
+      editCard: handleEditCard,
+      aiCard: handleAiCard,
+      aiBridge: handleAiBridge,
     };
   }, [openCreateDialog, exportCanvas, importCanvas, undo, redo, copySelected, paste, resetHistory, setNodes, nodes]);
+
+  // 事件监听只注册一次（依赖 eventHandlersRef，处理器始终为最新版本）
+  useEffect(() => {
+    const bindings: Array<[string, string]> = [
+      ["canvas:add-card", "add"],
+      ["canvas:export", "export"],
+      ["canvas:import", "import"],
+      ["canvas:export-tree", "exportTree"],
+      ["canvas:export-pack", "exportPack"],
+      ["canvas:import-learn", "importLearn"],
+      ["canvas:undo", "undo"],
+      ["canvas:redo", "redo"],
+      ["canvas:copy", "copy"],
+      ["canvas:paste", "paste"],
+      ["canvas:clear", "clear"],
+      ["canvas:jump-to-card", "jumpToCard"],
+      ["canvas:edit-card", "editCard"],
+      ["canvas:ai-card", "aiCard"],
+      ["canvas:ai-bridge", "aiBridge"],
+    ];
+    const listeners = bindings.map(([eventName, key]) => {
+      const fn = (e: Event) => eventHandlersRef.current[key]?.(e);
+      window.addEventListener(eventName, fn);
+      return [eventName, fn] as const;
+    });
+    return () => {
+      for (const [eventName, fn] of listeners) {
+        window.removeEventListener(eventName, fn);
+      }
+    };
+  }, []);
 
   /**
    * 根据选中标签 + 搜索结果过滤节点（高亮匹配，淡化不匹配）
@@ -769,9 +840,9 @@ export function CardCanvas({
         <MiniMap
           position="bottom-left"
           className="!bg-card/80 !backdrop-blur !border !border-border/60 !rounded-lg !shadow-md"
-          nodeColor="#3b82f6"
-          nodeStrokeColor="#1e40af"
-          nodeStrokeWidth={2}
+          nodeColor="rgba(59, 130, 246, 0.3)"
+          nodeStrokeColor="#3b82f6"
+          nodeStrokeWidth={1.5}
           maskColor="rgba(0,0,0,0.08)"
           pannable
           zoomable

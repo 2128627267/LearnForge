@@ -24,7 +24,12 @@ import {
   parseContentToLearnData,
   isWordLikeNode,
 } from "@/lib/cards/export-adapters";
+import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
+import { z } from "zod";
 import type { CanvasState } from "@/lib/hooks/use-local-storage";
+
+const logger = getLogger("ImportCanvasAPI");
 
 /** 请求体类型 */
 interface ImportCanvasRequest {
@@ -33,21 +38,64 @@ interface ImportCanvasRequest {
   subjectId?: string;
 }
 
+/**
+ * 画布节点/边的最小结构校验（zod）。
+ * 只校验导入链路实际使用的字段，避免耦合 ReactFlow 完整类型。
+ */
+const CanvasNodeSchema = z.object({
+  id: z.string().min(1),
+  position: z
+    .object({ x: z.number(), y: z.number() })
+    .partial()
+    .default({}),
+  data: z
+    .object({
+      title: z.string().optional(),
+      content: z.string().optional(),
+      tags: z.array(z.string()).optional(),
+      favorite: z.boolean().optional(),
+    })
+    .default({}),
+});
+
+const CanvasEdgeSchema = z.object({
+  id: z.string().min(1),
+  source: z.string().min(1),
+  target: z.string().min(1),
+});
+
+const ImportCanvasBodySchema = z.object({
+  canvas: z.object({
+    nodes: z.array(CanvasNodeSchema).default([]),
+    edges: z.array(CanvasEdgeSchema).default([]),
+  }),
+  packName: z.string().max(200).optional(),
+  subjectId: z.string().optional(),
+});
+
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as ImportCanvasRequest;
+    const raw = await request.json();
+    const parsed = ImportCanvasBodySchema.safeParse(raw);
 
-    // 参数校验
-    if (!body.canvas?.nodes || !Array.isArray(body.canvas.nodes)) {
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "画布数据格式不正确：缺少 nodes 数组" },
+        {
+          error: "画布数据格式不正确",
+          issues: parsed.error.issues.map((i) => ({
+            path: i.path.join("."),
+            message: i.message,
+          })),
+        },
         { status: 400 }
       );
     }
 
+    const body = parsed.data as ImportCanvasRequest;
+    const canvas = body.canvas as CanvasState;
+
     const userId = await getLearnUserId();
     const packName = body.packName || `canvas-${Date.now()}`;
-    const canvas = body.canvas;
 
     // 确保有 english subject（若未指定）
     let subjectId = body.subjectId;
@@ -84,20 +132,49 @@ export async function POST(request: Request) {
     let skipped = 0;
     let relationCount = 0;
 
+    // 预解析节点数据（事务外，解析失败仅跳过该节点，不阻断整体导入）
+    const prepared = new Map<
+      string,
+      {
+        rawNode: unknown;
+        position: { x: number; y: number } | undefined;
+        data: ReturnType<typeof extractNodeData>;
+        isWord: boolean;
+        mean: string[];
+        sentence: unknown[];
+      }
+    >();
+    for (const node of canvas.nodes) {
+      try {
+        const data = extractNodeData(node.data);
+        const isWord = isWordLikeNode(data);
+        const { mean, sentence } = parseContentToLearnData(data.content);
+        prepared.set(node.id, {
+          rawNode: node,
+          position: node.position,
+          data,
+          isWord,
+          mean,
+          sentence,
+        });
+      } catch (err) {
+        logger.error(`节点 ${node.id} 数据解析失败`, { error: String(err) });
+        skipped++;
+      }
+    }
+
     // 节点 ID 映射：画布节点 ID → 数据库 Card ID
     const nodeIdMap = new Map<string, string>();
 
-    // 2. 遍历画布节点，创建 Card + WordProfile + ImportLayout
-    for (const node of canvas.nodes) {
-      const data = extractNodeData(node.data);
-      const isWord = isWordLikeNode(data);
-
-      try {
-        // 从 content 解析释义/例句
-        const { mean, sentence } = parseContentToLearnData(data.content);
+    // 2+3. 单事务内创建 Card + WordProfile + ImportLayout + WordRelation
+    // 性能：显式事务将数百次独立写合并为一次提交（SQLite 下减少大量 fsync）
+    // 数据已预解析，事务内创建失败视为异常整体回滚，避免部分导入的脏状态
+    await prisma.$transaction(async (tx) => {
+      for (const [nodeId, item] of prepared) {
+        const { rawNode, position, data, isWord, mean, sentence } = item;
 
         // 创建 Card
-        const card = await prisma.card.create({
+        const card = await tx.card.create({
           data: {
             title: data.title,
             content: data.content || `# ${data.title}`,
@@ -108,8 +185,8 @@ export async function POST(request: Request) {
             source: "imported",
             metadata: JSON.stringify({
               importedFrom: "canvas",
-              canvasNodeId: node.id,
-              canvasPosition: node.position,
+              canvasNodeId: nodeId,
+              canvasPosition: position,
               tags: data.tags,
               favorite: data.favorite,
             }),
@@ -120,11 +197,11 @@ export async function POST(request: Request) {
           },
         });
 
-        nodeIdMap.set(node.id, card.id);
+        nodeIdMap.set(nodeId, card.id);
 
         // 创建 WordProfile（仅 word/phrase 类型）
         if (isWord) {
-          await prisma.wordProfile.create({
+          await tx.wordProfile.create({
             data: {
               cardId: card.id,
               length: data.title.replace(/\s/g, "").length,
@@ -134,7 +211,7 @@ export async function POST(request: Request) {
         }
 
         // 创建 ImportLayout（保留原始布局作为软相关性）
-        await prisma.importLayout.create({
+        await tx.importLayout.create({
           data: {
             packId: pack.id,
             cardId: card.id,
@@ -144,32 +221,27 @@ export async function POST(request: Request) {
             hierarchyTags: JSON.stringify(
               data.tags.length > 0 ? data.tags : ["画布导入"]
             ),
-            rawItem: JSON.stringify(node), // 完整保存原始节点（禁止删除）
+            rawItem: JSON.stringify(rawNode), // 完整保存原始节点（禁止删除）
           },
         });
 
         imported++;
-      } catch (err) {
-        console.error(`[import-canvas] 节点 ${node.id} 导入失败:`, err);
-        skipped++;
       }
-    }
 
-    // 3. 遍历画布边，创建 WordRelation（衍生关系）
-    for (const edge of canvas.edges) {
-      const fromCardId = nodeIdMap.get(edge.source);
-      const toCardId = nodeIdMap.get(edge.target);
+      // 遍历画布边，创建 WordRelation（衍生关系）
+      for (const edge of canvas.edges) {
+        const fromCardId = nodeIdMap.get(edge.source);
+        const toCardId = nodeIdMap.get(edge.target);
 
-      if (!fromCardId || !toCardId || fromCardId === toCardId) continue;
+        if (!fromCardId || !toCardId || fromCardId === toCardId) continue;
 
-      try {
         // 规范化 ID 顺序，避免重复
         const [a, b] =
           fromCardId < toCardId
             ? [fromCardId, toCardId]
             : [toCardId, fromCardId];
 
-        await prisma.wordRelation.upsert({
+        await tx.wordRelation.upsert({
           where: {
             fromCardId_toCardId_type: {
               fromCardId: a,
@@ -198,10 +270,8 @@ export async function POST(request: Request) {
           },
         });
         relationCount++;
-      } catch (err) {
-        console.error(`[import-canvas] 连线 ${edge.id} 创建关系失败:`, err);
       }
-    }
+    });
 
     return NextResponse.json({
       success: true,
@@ -213,13 +283,6 @@ export async function POST(request: Request) {
       message: `已导入 ${imported} 个卡片（其中单词 ${canvas.nodes.filter((n) => isWordLikeNode(extractNodeData(n.data))).length} 个），建立 ${relationCount} 条衍生关系`,
     });
   } catch (error) {
-    console.error("[import-canvas] 导入失败:", error);
-    return NextResponse.json(
-      {
-        error: "画布导入失败",
-        detail: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return errorResponse(logger, "画布导入失败", error);
   }
 }

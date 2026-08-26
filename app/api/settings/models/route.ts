@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import { isEnvVarReference, isFileLink } from "@/lib/config/env-resolver";
 
 const logger = getLogger("ModelsAPI");
@@ -25,12 +26,23 @@ export const dynamic = "force-dynamic";
 /** 模型配置大类 */
 export type ModelCategory = "language" | "embedding" | "voice" | "image" | "other";
 
+/** API 协议格式 */
+export type ApiFormat =
+  | "openai-chat"
+  | "openai-responses"
+  | "anthropic"
+  | "gemini"
+  | "ollama"
+  | "custom";
+
 /** 模型配置 DTO（对外暴露的形状） */
 export interface AIModelConfigDTO {
   id: string;
   name: string;
   category: ModelCategory;
   provider: string;
+  /** API 协议格式（openai 兼容 / anthropic / gemini / ollama / custom） */
+  apiFormat: ApiFormat;
   modelName: string;
   /** API Key（脱敏或原样返回环境变量引用） */
   apiKey: string;
@@ -62,6 +74,24 @@ const ALLOWED_PROVIDERS = [
   "custom",
 ];
 
+/** 允许的 API 协议格式 */
+const ALLOWED_API_FORMATS: ApiFormat[] = [
+  "openai-chat",
+  "openai-responses",
+  "anthropic",
+  "gemini",
+  "ollama",
+  "custom",
+];
+
+/** 旧值兼容归一化：openai → openai-chat */
+function normalizeApiFormat(value: string): ApiFormat {
+  if (value === "openai") return "openai-chat";
+  return ALLOWED_API_FORMATS.includes(value as ApiFormat)
+    ? (value as ApiFormat)
+    : "openai-chat";
+}
+
 /**
  * 对 API Key 脱敏
  *
@@ -88,6 +118,7 @@ function toDTO(record: {
   name: string;
   category: string;
   provider: string;
+  apiFormat: string;
   modelName: string;
   apiKey: string;
   apiUrl: string;
@@ -111,6 +142,7 @@ function toDTO(record: {
     name: record.name,
     category: record.category as ModelCategory,
     provider: record.provider,
+    apiFormat: normalizeApiFormat(record.apiFormat),
     modelName: record.modelName,
     apiKey: maskApiKey(record.apiKey),
     apiUrl: record.apiUrl,
@@ -156,11 +188,7 @@ export async function GET(request: NextRequest) {
       total: records.length,
     });
   } catch (err) {
-    logger.error("读取模型配置列表失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "读取模型配置列表失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "读取模型配置列表失败", err);
   }
 }
 
@@ -211,12 +239,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 校验 apiFormat（可选，默认 openai-chat；旧值 "openai" 兼容为 openai-chat）
+    let apiFormat: ApiFormat = "openai-chat";
+    if (body.apiFormat !== undefined) {
+      const raw = String(body.apiFormat);
+      if (
+        raw !== "openai" &&
+        !ALLOWED_API_FORMATS.includes(raw as ApiFormat)
+      ) {
+        return NextResponse.json(
+          {
+            error: `apiFormat 取值非法，允许值：${ALLOWED_API_FORMATS.join(", ")}`,
+          },
+          { status: 400 }
+        );
+      }
+      apiFormat = normalizeApiFormat(raw);
+    }
+
     // 创建记录
     const created = await prisma.aIModelConfig.create({
       data: {
         name: body.name,
         category: body.category,
         provider: body.provider,
+        apiFormat,
         modelName: body.modelName,
         apiKey: typeof body.apiKey === "string" ? body.apiKey : "",
         apiUrl: typeof body.apiUrl === "string" ? body.apiUrl : "",
@@ -234,10 +281,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(toDTO(created), { status: 201 });
   } catch (err) {
-    logger.error("创建模型配置失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "创建模型配置失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "创建模型配置失败", err);
   }
 }

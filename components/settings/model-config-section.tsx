@@ -29,13 +29,16 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/shared/toaster";
 import { cn } from "@/lib/utils/cn";
+import { EnvConfigDialog } from "./env-config-dialog";
 import {
   Box,
   Eye,
   EyeOff,
+  FileCode2,
   Image as ImageIcon,
   Loader2,
   MessageSquare,
@@ -58,6 +61,8 @@ interface AIModelConfigDTO {
   name: string;
   category: ModelCategory;
   provider: string;
+  /** API 协议格式 */
+  apiFormat: string;
   modelName: string;
   /** API Key（服务端已脱敏，或环境变量/file:// 原样返回） */
   apiKey: string;
@@ -74,10 +79,13 @@ interface FormState {
   name: string;
   category: ModelCategory;
   provider: string;
+  apiFormat: string;
   modelName: string;
   apiKey: string;
   apiUrl: string;
   isActive: boolean;
+  /** 自定义请求头 JSON（metadata.headers） */
+  headersJson: string;
 }
 
 // ==================== 常量配置 ====================
@@ -118,15 +126,53 @@ const PROVIDER_LABELS: Record<string, string> = Object.fromEntries(
   PROVIDER_OPTIONS.map((p) => [p.value, p.label])
 );
 
+/**
+ * API 协议格式选项（与服务端 ALLOWED_API_FORMATS 对齐）
+ * 决定请求走哪种协议：Chat Completions / Responses / Messages / Gemini / Ollama
+ */
+const API_FORMAT_OPTIONS: Array<{ value: string; label: string; hint: string }> = [
+  { value: "openai-chat", label: "OpenAI Chat Completions", hint: "POST /v1/chat/completions，兼容 DeepSeek/中转/Ollama /v1" },
+  { value: "openai-responses", label: "OpenAI Responses", hint: "POST /v1/responses（OpenAI 新协议）" },
+  { value: "anthropic", label: "Anthropic Messages", hint: "POST /v1/messages（x-api-key + anthropic-version）" },
+  { value: "gemini", label: "Google Gemini", hint: "POST /v1beta/models/{model}:streamGenerateContent" },
+  { value: "ollama", label: "Ollama 原生", hint: "POST /api/chat（NDJSON 流）" },
+  { value: "custom", label: "自定义（OpenAI 兼容 + 请求头）", hint: "OpenAI Chat 协议 + 自定义 headers" },
+];
+
+/** API 协议格式 value → 中文标签 */
+const API_FORMAT_LABELS: Record<string, string> = Object.fromEntries(
+  API_FORMAT_OPTIONS.map((p) => [p.value, p.label])
+);
+
+/** 提供商默认推荐协议格式 */
+const PROVIDER_DEFAULT_FORMAT: Record<string, string> = {
+  openai: "openai-chat",
+  anthropic: "anthropic",
+  deepseek: "openai-chat",
+  local: "ollama",
+  custom: "custom",
+};
+
+/** 提供商对应的默认 API URL 提示 */
+const PROVIDER_URL_HINTS: Record<string, string> = {
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com",
+  deepseek: "https://api.deepseek.com/v1",
+  local: "http://localhost:11434",
+  custom: "https://your-gateway.example.com/v1",
+};
+
 /** 空表单默认值（用于新增） */
 const EMPTY_FORM: FormState = {
   name: "",
   category: "language",
   provider: "openai",
+  apiFormat: "openai-chat",
   modelName: "",
   apiKey: "",
   apiUrl: "",
   isActive: true,
+  headersJson: "",
 };
 
 // ==================== 工具函数 ====================
@@ -168,6 +214,9 @@ export function ModelConfigSection() {
 
   // ---------- 删除确认状态 ----------
   const [deleteTarget, setDeleteTarget] = useState<AIModelConfigDTO | null>(null);
+
+  // ---------- 配置文件编辑弹窗 ----------
+  const [envDialogOpen, setEnvDialogOpen] = useState(false);
 
   // ==================== 数据加载 ====================
 
@@ -239,7 +288,12 @@ export function ModelConfigSection() {
    */
   const openCreate = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      apiFormat:
+        PROVIDER_DEFAULT_FORMAT[EMPTY_FORM.provider] || "openai-chat",
+      apiUrl: PROVIDER_URL_HINTS[EMPTY_FORM.provider] || "",
+    });
     setShowApiKey(false);
     setEditorOpen(true);
   };
@@ -252,15 +306,21 @@ export function ModelConfigSection() {
    *       用户不输入则提交时不传 apiKey（保留原值），输入新值则覆盖。
    */
   const openEdit = (item: AIModelConfigDTO) => {
+    const headers = (item.metadata?.headers as Record<string, unknown>) || {};
     setEditingId(item.id);
     setForm({
       name: item.name,
       category: item.category,
       provider: item.provider,
+      apiFormat: item.apiFormat || "openai-chat",
       modelName: item.modelName,
       apiKey: "", // 留空：未修改则保留原 Key
       apiUrl: item.apiUrl,
       isActive: item.isActive,
+      headersJson:
+        Object.keys(headers).length > 0
+          ? JSON.stringify(headers, null, 2)
+          : "",
     });
     setShowApiKey(false);
     setEditorOpen(true);
@@ -293,14 +353,43 @@ export function ModelConfigSection() {
     try {
       const isEdit = editingId !== null;
 
+      // 解析自定义请求头 JSON（可选字段，非法 JSON 时阻止保存）
+      let headers: Record<string, string> = {};
+      if (form.headersJson.trim() !== "") {
+        try {
+          const parsed = JSON.parse(form.headersJson);
+          if (
+            typeof parsed !== "object" ||
+            parsed === null ||
+            Array.isArray(parsed)
+          ) {
+            throw new Error("请求头必须是 JSON 对象");
+          }
+          for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v !== "string") {
+              throw new Error(`请求头 ${k} 的值必须是字符串`);
+            }
+          }
+          headers = parsed as Record<string, string>;
+        } catch (err) {
+          toast.error("请求头 JSON 格式错误", {
+            description: String(err),
+          });
+          setSaving(false);
+          return;
+        }
+      }
+
       // 构建请求体：编辑模式下 apiKey 为空则不传（保留原值）
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
         category: form.category,
         provider: form.provider,
+        apiFormat: form.apiFormat || "openai-chat",
         modelName: form.modelName.trim(),
         apiUrl: form.apiUrl.trim(),
         isActive: form.isActive,
+        metadata: { headers },
       };
       if (form.apiKey.trim() !== "") {
         payload.apiKey = form.apiKey.trim();
@@ -364,14 +453,25 @@ export function ModelConfigSection() {
 
   return (
     <Card>
-      {/* 头部：标题 + 新增按钮 */}
+      {/* 头部：标题 + 新增按钮 + 配置文件入口 */}
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <CardTitle className="text-base">AI 模型配置</CardTitle>
-          <Button type="button" size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-1" />
-            新增配置
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setEnvDialogOpen(true)}
+            >
+              <FileCode2 className="h-4 w-4 mr-1" />
+              查看配置文件
+            </Button>
+            <Button type="button" size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4 mr-1" />
+              新增配置
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
@@ -486,7 +586,19 @@ export function ModelConfigSection() {
                   <select
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={form.provider}
-                    onChange={(e) => updateField("provider", e.target.value)}
+                    onChange={(e) => {
+                      const provider = e.target.value;
+                      updateField("provider", provider);
+                      // 联动：切换提供商时同步推荐协议格式与默认 URL（仅新增/未自定义时）
+                      updateField(
+                        "apiFormat",
+                        PROVIDER_DEFAULT_FORMAT[provider] || "openai-chat"
+                      );
+                      updateField(
+                        "apiUrl",
+                        PROVIDER_URL_HINTS[provider] || ""
+                      );
+                    }}
                   >
                     {PROVIDER_OPTIONS.map((p) => (
                       <option key={p.value} value={p.value}>
@@ -495,6 +607,31 @@ export function ModelConfigSection() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* API 协议格式（决定请求走哪种协议） */}
+              <div>
+                <label className="block text-sm font-medium mb-1.5">
+                  API 协议格式 <span className="text-destructive">*</span>
+                </label>
+                <select
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={form.apiFormat}
+                  onChange={(e) => updateField("apiFormat", e.target.value)}
+                >
+                  {API_FORMAT_OPTIONS.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {
+                    API_FORMAT_OPTIONS.find(
+                      (f) => f.value === form.apiFormat
+                    )?.hint
+                  }
+                </p>
               </div>
 
               {/* 模型标识 */}
@@ -559,9 +696,33 @@ export function ModelConfigSection() {
                 <Input
                   value={form.apiUrl}
                   onChange={(e) => updateField("apiUrl", e.target.value)}
-                  placeholder="https://api.openai.com/v1（留空使用默认）"
+                  placeholder={
+                    `${PROVIDER_URL_HINTS[form.provider] || "https://..."}（留空使用默认）`
+                  }
                 />
               </div>
+
+              {/* 高级配置：自定义请求头（metadata.headers） */}
+              <details className="rounded-lg border bg-muted/30 p-3">
+                <summary className="text-sm font-medium cursor-pointer select-none">
+                  高级配置：自定义请求头（可选）
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <Textarea
+                    value={form.headersJson}
+                    onChange={(e) =>
+                      updateField("headersJson", e.target.value)
+                    }
+                    placeholder={'{\n  "X-Custom-Header": "value"\n}'}
+                    rows={4}
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    以 JSON 对象格式填写，将附加到每次 API 请求头
+                    （如 Azure 的 api-key、网关鉴权头）。留空表示不附加。
+                  </p>
+                </div>
+              </details>
 
               {/* 启用开关 */}
               <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
@@ -653,6 +814,9 @@ export function ModelConfigSection() {
           </div>
         </div>
       )}
+
+      {/* ==================== 配置文件编辑弹窗 ==================== */}
+      <EnvConfigDialog open={envDialogOpen} onClose={() => setEnvDialogOpen(false)} />
     </Card>
   );
 }
@@ -677,7 +841,7 @@ function ModelCard({
   return (
     <div className="flex items-start gap-3 p-3 rounded border bg-background">
       <div className="flex-1 min-w-0 space-y-1.5">
-        {/* 第一行：名称 + 状态徽章 + 提供商 */}
+        {/* 第一行：名称 + 状态徽章 + 提供商 + 协议格式 */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium truncate">{item.name}</span>
           {!item.isActive && (
@@ -687,6 +851,9 @@ function ModelCard({
           )}
           <Badge variant="outline" className="text-xs">
             {PROVIDER_LABELS[item.provider] || item.provider}
+          </Badge>
+          <Badge variant="outline" className="text-xs">
+            {API_FORMAT_LABELS[item.apiFormat] || item.apiFormat}
           </Badge>
         </div>
 

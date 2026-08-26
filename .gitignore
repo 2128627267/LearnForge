@@ -78,7 +78,7 @@ Thumbs.db
 *.bak
 
 # ============ 安全：敏感数据不入库 ============
-# SQLite 数据库（含明文 API Key 的 AISettings 表）
+# SQLite 数据库（含明文 API Key 的 AISettings 表 + 画布布局 CanvasLayout 表）
 *.db
 *.db-journal
 *.db-wal
@@ -87,3 +87,6 @@ prisma/data/
 # 学习数据包（可能含个人学习数据）
 data/data_packs.json
 data/data_packs_*.json
+# 画布导出/保存内容（手动导出或脚本生成的布局 JSON）
+data/canvas-export*
+data/canvas-layout*

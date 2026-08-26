@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("CheckMissingAPI");
 
@@ -123,10 +124,6 @@ export async function GET(request: NextRequest) {
       missing,
     });
   } catch (err) {
-    logger.error("缺失字段检查失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "检查失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "缺失字段检查失败", err);
   }
 }

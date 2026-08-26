@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import { isEnvVarReference, isFileLink } from "@/lib/config/env-resolver";
 
 const logger = getLogger("SettingsAPI");
@@ -146,11 +147,7 @@ export async function GET() {
     });
     return NextResponse.json(toDTO(settings));
   } catch (err) {
-    logger.error("读取 AI 配置失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "读取 AI 配置失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "读取 AI 配置失败", err);
   }
 }
 
@@ -310,10 +307,6 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(toDTO(updated));
   } catch (err) {
-    logger.error("更新 AI 配置失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "更新 AI 配置失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "更新 AI 配置失败", err);
   }
 }

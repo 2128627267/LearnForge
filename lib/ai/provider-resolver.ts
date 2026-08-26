@@ -7,10 +7,28 @@
  *   3. 环境变量 AI_MODEL/AI_API_KEY/AI_BASE_URL（原默认行为）
  *
  * 凭据解析：apiKey/apiUrl 支持 ${ENV_VAR} 与 file:// 语法，由 env-resolver 解析
+ *
+ * 协议分发（AIModelConfig.apiFormat）：
+ *   - openai-chat       → OpenAI Chat Completions 兼容（OpenAICompatProvider）
+ *   - openai-responses  → OpenAI Responses API（OpenAIResponsesProvider）
+ *   - anthropic         → Anthropic Messages API
+ *   - gemini            → Google Gemini API
+ *   - ollama            → Ollama 原生 /api/chat
+ *   - custom            → OpenAI 兼容 + 自定义 headers
  */
 import { prisma } from "@/lib/db/prisma";
 import { resolveValue } from "@/lib/config/env-resolver";
-import { getAIProvider, OpenAICompatProvider } from "./provider-openai";
+import {
+  getAIProvider,
+  OpenAICompatProvider,
+  OpenAIResponsesProvider,
+} from "./provider-openai";
+import {
+  AnthropicProvider,
+  GeminiProvider,
+  OllamaProvider,
+  type HttpProviderConfig,
+} from "./provider-http";
 import type { AIProvider } from "./types";
 import { loadAIConfig } from "./types";
 
@@ -19,6 +37,89 @@ export interface ResolvedChatProvider {
   provider: AIProvider;
   /** 实际使用模型的显示名（日志/提示用） */
   modelLabel: string;
+}
+
+/** 支持的 API 协议格式 */
+export type ApiFormat =
+  | "openai-chat"
+  | "openai-responses"
+  | "anthropic"
+  | "gemini"
+  | "ollama"
+  | "custom";
+
+/** 旧值兼容：openai → openai-chat */
+function normalizeFormat(value: string): ApiFormat {
+  if (value === "openai") return "openai-chat";
+  const formats: ApiFormat[] = [
+    "openai-chat",
+    "openai-responses",
+    "anthropic",
+    "gemini",
+    "ollama",
+    "custom",
+  ];
+  return formats.includes(value as ApiFormat)
+    ? (value as ApiFormat)
+    : "openai-chat";
+}
+
+/**
+ * 从 metadata JSON 提取自定义请求头（{ headers: { "X-Foo": "bar" } }）
+ */
+function extractHeaders(metadataJson: string): Record<string, string> {
+  try {
+    const meta = JSON.parse(metadataJson || "{}") as {
+      headers?: Record<string, unknown>;
+    };
+    const headers: Record<string, string> = {};
+    if (meta.headers && typeof meta.headers === "object") {
+      for (const [k, v] of Object.entries(meta.headers)) {
+        if (typeof v === "string" && v.trim()) headers[k] = v.trim();
+      }
+    }
+    return headers;
+  } catch {
+    return {};
+  }
+}
+
+/** 数据库模型配置的最小形状 */
+interface ModelConfigLike {
+  apiKey: string;
+  apiUrl: string;
+  modelName: string;
+  apiFormat?: string;
+  metadata?: string;
+}
+
+/**
+ * 根据 apiFormat 创建对应协议的 Provider
+ */
+function createProviderByFormat(
+  cfg: ModelConfigLike
+): AIProvider {
+  const base: HttpProviderConfig = {
+    apiKey: resolveValue(cfg.apiKey),
+    baseUrl: resolveValue(cfg.apiUrl) || undefined,
+    model: cfg.modelName,
+    headers: extractHeaders(cfg.metadata || "{}"),
+  };
+  switch (normalizeFormat(cfg.apiFormat || "openai-chat")) {
+    case "openai-responses":
+      return new OpenAIResponsesProvider(base);
+    case "anthropic":
+      return new AnthropicProvider(base);
+    case "gemini":
+      return new GeminiProvider(base);
+    case "ollama":
+      return new OllamaProvider(base);
+    case "custom":
+      return new OpenAICompatProvider(base);
+    case "openai-chat":
+    default:
+      return new OpenAICompatProvider(base);
+  }
 }
 
 /**
@@ -35,11 +136,7 @@ export async function resolveChatProvider(
     const cfg = await prisma.aIModelConfig.findUnique({ where: { id: modelId } });
     if (cfg && cfg.isActive) {
       return {
-        provider: new OpenAICompatProvider({
-          apiKey: resolveValue(cfg.apiKey),
-          baseUrl: resolveValue(cfg.apiUrl) || undefined,
-          model: cfg.modelName,
-        }),
+        provider: createProviderByFormat(cfg),
         modelLabel: `${cfg.name} (${cfg.modelName})`,
       };
     }
@@ -53,11 +150,7 @@ export async function resolveChatProvider(
   if (binding?.primaryModel) {
     const m = binding.primaryModel;
     return {
-      provider: new OpenAICompatProvider({
-        apiKey: resolveValue(m.apiKey),
-        baseUrl: resolveValue(m.apiUrl) || undefined,
-        model: m.modelName,
-      }),
+      provider: createProviderByFormat(m),
       modelLabel: `${m.name} (${m.modelName})`,
     };
   }

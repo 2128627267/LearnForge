@@ -33,7 +33,12 @@ import {
   importAllDataPacks,
   importDataPack,
 } from "@/lib/import/legacy-importer";
+import {
+  DATAPACKS_ROOT,
+  resolveWithinDatapacks,
+} from "@/lib/import/path-guard";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("LearnImportAPI");
 
@@ -67,6 +72,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ===== 1.5 路径安全校验：仅允许项目 datapacks/ 目录内（防路径遍历）=====
+    let safePackDir: string | null = null;
+    let safeDatapacksDir: string | null = null;
+    if (packDir) {
+      safePackDir = resolveWithinDatapacks(packDir);
+      if (!safePackDir) {
+        return NextResponse.json(
+          {
+            error: `packDir 必须位于项目数据包目录内：${DATAPACKS_ROOT}`,
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      safeDatapacksDir = resolveWithinDatapacks(datapacksDir!);
+      if (!safeDatapacksDir) {
+        return NextResponse.json(
+          {
+            error: `datapacksDir 必须位于项目数据包目录内：${DATAPACKS_ROOT}`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // ===== 2. 获取学习用户 ID（认证 fallback）=====
     const userId = await getLearnUserId();
     logger.info("学习数据导入请求", { packDir, datapacksDir, subjectId, userId });
@@ -79,15 +109,19 @@ export async function POST(request: NextRequest) {
     let packIds: string[];
 
     if (packDir) {
-      // 3.1 单包导入
-      const result = await importDataPack(packDir, userId, subjectId);
+      // 3.1 单包导入（路径已通过白名单校验）
+      const result = await importDataPack(safePackDir!, userId, subjectId);
       imported = result.imported;
       skipped = result.skipped;
       packs = result.packId ? 1 : 0;
       packIds = result.packId ? [result.packId] : [];
     } else {
-      // 3.2 批量导入（datapacksDir 必然存在，前面已校验）
-      const result = await importAllDataPacks(datapacksDir!, userId, subjectId);
+      // 3.2 批量导入（safeDatapacksDir 必然存在，前面已校验）
+      const result = await importAllDataPacks(
+        safeDatapacksDir!,
+        userId,
+        subjectId
+      );
       imported = result.totalImported;
       skipped = result.totalSkipped;
       packs = result.packs;
@@ -130,10 +164,6 @@ export async function POST(request: NextRequest) {
       relations,
     });
   } catch (err) {
-    logger.error("学习数据导入失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "导入失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "学习数据导入失败", err);
   }
 }

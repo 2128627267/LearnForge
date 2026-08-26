@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveChatProvider } from "@/lib/ai";
 import { Prompts } from "@/lib/ai";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("AI-ExtendExplore");
 
@@ -63,10 +64,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
-    logger.error("AI 延展探索失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "AI 探索失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "AI 延展探索失败", err);
   }
 }

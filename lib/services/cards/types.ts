@@ -43,6 +43,17 @@ export const RelationTypeEnum = z.enum([
 ]);
 export type RelationType = z.infer<typeof RelationTypeEnum>;
 
+/** 例句条目：兼容纯字符串与 {en, zh} 结构化对象两种格式（与 Prisma schema 及学习链路一致） */
+export const SentenceItemSchema = z.union([
+  z.string(),
+  z.object({
+    en: z.string(),
+    zh: z.string().optional(),
+    meaning: z.string().optional(),
+  }),
+]);
+export type SentenceItem = z.infer<typeof SentenceItemSchema>;
+
 /** 创建卡片输入 Schema */
 export const CreateCardSchema = z.object({
   title: z.string().min(1).max(200),
@@ -58,7 +69,7 @@ export const CreateCardSchema = z.object({
   phonetic: z.string().optional(),
   partOfSpeech: z.string().optional(),
   meanings: z.array(z.string()).default([]),
-  sentences: z.array(z.string()).default([]),
+  sentences: z.array(SentenceItemSchema).default([]),
   // 数学专属
   problemStatement: z.string().optional(),
   solution: z.string().optional(),
@@ -101,7 +112,7 @@ export const AICardExtractionSchema = z.array(
     phonetic: z.string().optional(),
     partOfSpeech: z.string().optional(),
     meanings: z.array(z.string()).optional(),
-    sentences: z.array(z.string()).optional(),
+    sentences: z.array(SentenceItemSchema).optional(),
     problemStatement: z.string().optional(),
     solution: z.string().optional(),
     latexFormulas: z.array(z.string()).optional(),

@@ -6,7 +6,12 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { importDataPack } from "@/lib/import/legacy-importer";
+import {
+  DATAPACKS_ROOT,
+  resolveWithinDatapacks,
+} from "@/lib/import/path-guard";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("ImportAPI");
 const TEMP_USER_ID = "dev-user";
@@ -22,9 +27,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    logger.info("数据包导入请求", { packDir });
+    // 安全：仅允许项目 datapacks/ 目录内的路径（防路径遍历）
+    const safePackDir = resolveWithinDatapacks(packDir);
+    if (!safePackDir) {
+      return NextResponse.json(
+        { error: `packDir 必须位于项目数据包目录内：${DATAPACKS_ROOT}` },
+        { status: 400 }
+      );
+    }
 
-    const result = await importDataPack(packDir, TEMP_USER_ID, subjectId);
+    logger.info("数据包导入请求", { packDir: safePackDir });
+
+    const result = await importDataPack(safePackDir, TEMP_USER_ID, subjectId);
 
     return NextResponse.json({
       success: true,
@@ -32,10 +46,6 @@ export async function POST(request: NextRequest) {
       skipped: result.skipped,
     });
   } catch (err) {
-    logger.error("数据导入失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "导入失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "数据导入失败", err);
   }
 }

@@ -27,6 +27,7 @@ import {
   SessionStats,
 } from "@/lib/learning/types";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("LearnNextAPI");
 
@@ -129,11 +130,7 @@ export async function GET() {
 
     return NextResponse.json(payload);
   } catch (err) {
-    logger.error("/api/learn/next 失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "获取下一题失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "/api/learn/next 失败", err);
   }
 }
 

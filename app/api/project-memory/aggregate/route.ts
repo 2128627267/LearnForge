@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import {
   refreshAllModuleMemories,
   refreshModuleMemory,
@@ -68,11 +69,7 @@ export async function POST(request: NextRequest) {
             .join("、")}`,
     });
   } catch (err) {
-    logger.error("项目记忆聚合失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "聚合失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "项目记忆聚合失败", err);
   }
 }
 
@@ -126,11 +123,7 @@ export async function GET() {
       total: memories.length,
     });
   } catch (err) {
-    logger.error("获取系统记忆列表失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "获取失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "获取系统记忆列表失败", err);
   }
 }
 
@@ -154,10 +147,6 @@ export async function DELETE() {
       deleted: result.count,
     });
   } catch (err) {
-    logger.error("清除系统记忆失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "清除失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "清除系统记忆失败", err);
   }
 }

@@ -788,6 +788,18 @@ function FreeCardNodeComponent({ id, data, selected, zIndex, xPos, yPos }: NodeP
   };
 
   /**
+   * 节流后的位置（重叠检测专用，P5 性能优化）
+   * 拖拽时位置每帧变化，若直接依赖 xPos/yPos 会逐帧执行全量 AABB 检测。
+   * 仅当位移超过阈值（4px）才更新，肉眼不可感知差异，计算量大幅下降。
+   */
+  const [throttledPos, setThrottledPos] = useState({ x: xPos, y: yPos });
+  useEffect(() => {
+    if (Math.abs(xPos - throttledPos.x) + Math.abs(yPos - throttledPos.y) >= 4) {
+      setThrottledPos({ x: xPos, y: yPos });
+    }
+  }, [xPos, yPos, throttledPos]);
+
+  /**
    * 检测当前卡片与其他卡片的重叠情况
    *
    * 通过 React Flow 的 getNodes() 获取所有节点位置和尺寸，
@@ -827,10 +839,10 @@ function FreeCardNodeComponent({ id, data, selected, zIndex, xPos, yPos }: NodeP
       return a.id.localeCompare(b.id);
     });
     return { isOverlapping: overlappingNodes.length > 0, overlappingNodes };
-    // 依赖 xPos/yPos：拖动当前卡片时实时更新重叠检测；
+    // 依赖节流后的位置：拖动时位移超过阈值才重算，避免每帧全量检测；
     // 依赖 zIndex：层级调整后更新；selected：选中时重新计算
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, getNodes, cardWidth, xPos, yPos, zIndex, selected]);
+  }, [id, getNodes, cardWidth, throttledPos.x, throttledPos.y, zIndex, selected]);
 
   // 解构以便在 JSX 中直接使用
   const { isOverlapping: overlapping, overlappingNodes } = overlappingInfo;

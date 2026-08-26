@@ -235,15 +235,15 @@ export default function ImportPage() {
       )}
 
       {missingCheck && missingCheck.missingCount > 0 && (
-        <Card className="border-amber-300 bg-amber-50/50">
+        <Card className="border-amber-300 bg-amber-50/50 dark:border-amber-500/30 dark:bg-amber-500/10">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <h3 className="font-medium text-amber-900">
+                <h3 className="font-medium text-amber-900 dark:text-amber-300">
                   发现 {missingCheck.missingCount} 张卡片有缺失字段
                 </h3>
-                <p className="text-sm text-amber-700 mt-1">
+                <p className="text-sm text-amber-700 dark:text-amber-400/90 mt-1">
                   以下单词/短语缺少音标、释义、例句等信息。可使用 AI 智能补全。
                 </p>
 

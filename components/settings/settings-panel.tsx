@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/dialog";
 import { toast } from "@/components/shared/toaster";
 import { cn } from "@/lib/utils/cn";
 import {
@@ -1104,13 +1105,42 @@ export function SettingsPanel() {
       <CodecSection />
 
       {/* ==================== 清空确认对话框 ==================== */}
-      {clearConfirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-card border rounded-lg shadow-lg max-w-md w-full mx-4 p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              <h2 className="text-lg font-semibold">确认清空知识库</h2>
-            </div>
+      <Dialog
+        open={clearConfirmOpen}
+        onClose={() => {
+          if (!clearing) setClearConfirmOpen(false);
+        }}
+        title="确认清空知识库"
+        maxWidth="max-w-md"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setClearConfirmOpen(false)}
+              disabled={clearing}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleClearAll}
+              disabled={clearing}
+            >
+              {clearing ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-1" />
+              )}
+              {clearing ? "清空中..." : "确认清空"}
+            </Button>
+          </>
+        }
+      >
+        <div className="p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-destructive" />
             <p className="text-sm text-muted-foreground">
               即将删除全部{" "}
               <span className="font-semibold text-foreground">
@@ -1120,32 +1150,9 @@ export function SettingsPanel() {
               <span className="text-destructive font-semibold">不可恢复</span>
               ，确定继续吗？
             </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setClearConfirmOpen(false)}
-                disabled={clearing}
-              >
-                取消
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleClearAll}
-                disabled={clearing}
-              >
-                {clearing ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                ) : (
-                  <Trash2 className="h-4 w-4 mr-1" />
-                )}
-                {clearing ? "清空中..." : "确认清空"}
-              </Button>
-            </div>
           </div>
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

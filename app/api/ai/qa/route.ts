@@ -29,6 +29,7 @@ import { buildQASystemPrompt } from "@/lib/ai/prompts";
 import { getActiveMemories, touchMemories } from "@/lib/ai/memory-cache";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("AI-QA");
 
@@ -108,9 +109,16 @@ export async function POST(request: NextRequest) {
       Array.isArray(history)
         ? history
             .slice(-20)
-            .map((m: { role: string; content: string }) => ({
+            .filter(
+              (m: { role?: string; content?: unknown }) =>
+                (m?.role === "user" || m?.role === "assistant") &&
+                typeof m?.content === "string" &&
+                m.content.length > 0
+            )
+            .map((m: { role?: string; content?: string }) => ({
               role: m.role === "assistant" ? "assistant" : "user",
-              content: m.content,
+              // 单条历史长度上限 4000 字符，防止注入超长上下文
+              content: (m.content ?? "").slice(0, 4000),
             }))
         : [];
 
@@ -176,10 +184,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
-    logger.error("AI 问答失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "AI 问答失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "AI 问答失败", err);
   }
 }

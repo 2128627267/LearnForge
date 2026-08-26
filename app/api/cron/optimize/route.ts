@@ -18,6 +18,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { scheduler } from "@/lib/learning/scheduler";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
+import { timingSafeEqualStr } from "@/lib/utils/timing-safe-equal";
 
 const logger = getLogger("CronOptimizeAPI");
 
@@ -46,8 +48,9 @@ export async function GET(request: NextRequest) {
       ? authHeader.slice(7).trim()
       : "";
 
-    // 校验 token（完全相等才通过）
-    if (!provided || provided !== cronSecret) {
+    // 校验 token（常量时间比较，防时序侧信道）
+    const authorized = provided && (await timingSafeEqualStr(provided, cronSecret));
+    if (!authorized) {
       logger.warn("CRON_SECRET 校验失败，拒绝执行");
       return NextResponse.json(
         { error: "未授权" },
@@ -65,10 +68,6 @@ export async function GET(request: NextRequest) {
       result,
     });
   } catch (err) {
-    logger.error("/api/cron/optimize 失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "批量优化失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "/api/cron/optimize 失败", err);
   }
 }

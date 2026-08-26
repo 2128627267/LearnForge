@@ -16,6 +16,7 @@ import { z } from "zod";
 import { getLearnUserId } from "@/lib/learning/auth";
 import { scheduler } from "@/lib/learning/scheduler";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("SessionEndAPI");
 
@@ -60,10 +61,6 @@ export async function POST(request: NextRequest) {
       message: "会话已结束，后台优化已触发",
     });
   } catch (err) {
-    logger.error("/api/learn/session/end 失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "结束会话失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "/api/learn/session/end 失败", err);
   }
 }

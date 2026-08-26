@@ -16,6 +16,7 @@ import {
   Calculator,
   Trash2,
   Link as LinkIcon,
+  Keyboard,
 } from "lucide-react";
 import type { CardDraft, LearningMode } from "@/lib/hooks/use-card-dialog-draft";
 import type {
@@ -38,6 +39,12 @@ interface GeneratePreviewItem {
   content: string;
   difficulty?: number;
   tags?: string[];
+}
+
+/** AI 生成结果（新协议：cards + relations；旧协议为纯数组） */
+interface GenerateResult {
+  cards: GeneratePreviewItem[];
+  relations?: Array<{ from?: number | string; to?: number | string; label?: string }>;
 }
 
 /** 扩展探索结果 */
@@ -84,8 +91,29 @@ export function CardDialogAiPanel({
   const [extLoading, setExtLoading] = useState(false);
   const [mathLoading, setMathLoading] = useState(false);
 
+  // Alt+数字键 快速切换模型（与 select 选项顺序一致：1 = 第一个）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      if (e.key < "1" || e.key > "9") return;
+      const idx = Number(e.key) - 1;
+      const m = models[idx];
+      if (m) {
+        e.preventDefault();
+        setModelId(m.id);
+        toast.info(`已切换模型：${m.name}`);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [models]);
+
   // 生成/扩展结果预览
   const [genPreview, setGenPreview] = useState<GeneratePreviewItem[] | null>(null);
+  // AI 返回的卡片间关系（用于批量创建时连线）
+  const [genRelations, setGenRelations] = useState<
+    NonNullable<GenerateResult["relations"]>
+  >([]);
   const [genRaw, setGenRaw] = useState("");
   const [extPreview, setExtPreview] = useState<ExtendPreview | null>(null);
 
@@ -196,6 +224,7 @@ export function CardDialogAiPanel({
     if (!text || genLoading) return;
     setGenLoading(true);
     setGenPreview(null);
+    setGenRelations([]);
     setGenRaw("");
     try {
       const res = await fetch("/api/ai/generate-cards", {
@@ -215,11 +244,20 @@ export function CardDialogAiPanel({
         /* 生成 Tab 不逐块预览 */
       });
       setGenRaw(full);
-      const parsed = parseJson<GeneratePreviewItem[]>(full);
-      if (!parsed || !Array.isArray(parsed)) {
-        toast.error("AI 返回格式无法解析，已显示原始文本");
+      const parsed = parseJson<unknown>(full);
+      // 兼容两种协议：新协议 { cards, relations }，旧协议纯数组
+      if (parsed && Array.isArray(parsed)) {
+        setGenPreview(parsed as GeneratePreviewItem[]);
+      } else if (
+        parsed &&
+        typeof parsed === "object" &&
+        Array.isArray((parsed as GenerateResult).cards)
+      ) {
+        const result = parsed as GenerateResult;
+        setGenPreview(result.cards);
+        setGenRelations(result.relations ?? []);
       } else {
-        setGenPreview(parsed);
+        toast.error("AI 返回格式无法解析，已显示原始文本");
       }
     } catch (err) {
       toast.error("AI 生成失败", { description: String(err) });
@@ -374,15 +412,22 @@ export function CardDialogAiPanel({
             未配置模型，请前往设置页配置
           </span>
         ) : (
-          <Select
-            value={modelId}
-            onChange={setModelId}
-            options={models.map((m) => ({
-              value: m.id,
-              label: `${m.name} (${m.modelName})`,
-            }))}
-            className="max-w-[220px] text-xs"
-          />
+          <>
+            <Select
+              value={modelId}
+              onChange={setModelId}
+              options={models.map((m) => ({
+                value: m.id,
+                label: `${m.name} (${m.modelName})`,
+              }))}
+              className="max-w-[220px] text-xs"
+              title="切换模型（Alt+数字键快速切换，1 = 第一个）"
+            />
+            <Keyboard
+              className="w-3.5 h-3.5 text-muted-foreground shrink-0 cursor-help"
+              aria-label="快捷键提示：Alt+数字键快速切换模型"
+            />
+          </>
         )}
       </div>
 
@@ -510,13 +555,51 @@ export function CardDialogAiPanel({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium">
                     生成 {genPreview.length} 张卡片预览
+                    {genRelations.length > 0 && (
+                      <span className="text-muted-foreground ml-1">
+                        · {genRelations.length} 条连线
+                      </span>
+                    )}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      genPreview.forEach(createGenerateItem);
-                      toast.success(`已批量创建 ${genPreview.length} 张卡片`);
+                      // 批量创建：一次调用创建全部卡片，AI 返回的 relations
+                      // 作为本批次连线（from/to 为 cards 索引，由 handleCreateNodes 解析）
+                      const relations = genRelations
+                        .filter(
+                          (r) =>
+                            r.from !== undefined &&
+                            r.to !== undefined
+                        )
+                        .map((r) => ({
+                          from: String(r.from),
+                          to: String(r.to),
+                          label: r.label,
+                        }));
+                      onCreateNodes(
+                        genPreview.map((item, i) => ({
+                          data: {
+                            title: item.title,
+                            content: item.content,
+                            tags: item.tags ?? [],
+                            learningMode: form.learningMode,
+                            cardType: CARD_TYPE_WHITELIST.includes(
+                              item.type as (typeof CARD_TYPE_WHITELIST)[number]
+                            )
+                              ? (item.type as (typeof CARD_TYPE_WHITELIST)[number])
+                              : "general",
+                          },
+                          // 关系线整体挂在本批次首个 item 上（索引引用全批次）
+                          ...(i === 0 && relations.length > 0
+                            ? { relations }
+                            : {}),
+                        }))
+                      );
+                      toast.success(
+                        `已批量创建 ${genPreview.length} 张卡片${relations.length > 0 ? `与 ${relations.length} 条连线` : ""}`
+                      );
                     }}
                   >
                     <LinkIcon className="w-3 h-3 mr-1" />

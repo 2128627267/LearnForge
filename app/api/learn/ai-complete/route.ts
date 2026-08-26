@@ -17,6 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAIProvider } from "@/lib/ai";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("AICompleteAPI");
 
@@ -254,10 +255,6 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (err) {
-    logger.error("AI 补全接口失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "AI 补全失败", detail: String(err) },
-      { status: 500 }
-    );
+      return errorResponse(logger, "AI 补全接口失败", err);
   }
 }

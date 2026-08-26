@@ -504,7 +504,9 @@ export function SidePanel({
                               e.stopPropagation();
                               onRemoveTag(tag.name);
                             }}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/20 text-destructive"
+                            title={`删除标签 ${tag.name}`}
+                            aria-label={`删除标签 ${tag.name}`}
+                            className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 max-sm:opacity-100 p-0.5 rounded hover:bg-destructive/20 text-destructive transition-opacity"
                           >
                             <X className="w-3 h-3" />
                           </button>

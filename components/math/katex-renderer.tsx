@@ -1,8 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import katex from "katex";
-import "katex/dist/katex.min.css";
+import { useEffect, useMemo, useState } from "react";
 
 /**
  * KaTeX 数学公式渲染组件
@@ -11,7 +9,37 @@ import "katex/dist/katex.min.css";
  * 用法：
  * <MathContent text="求 $x^2 + 2x + 1 = 0$ 的根" />
  * <MathContent text="$$\\int_0^1 x^2 dx = \\frac{1}{3}$$" block />
+ *
+ * 性能（P1 优化）：
+ * - KaTeX（JS + CSS）惰性加载：仅当内容含 $ 公式标记时才按需下载，
+ *   纯文本卡片不加载 KaTeX，显著减小画布页首屏 bundle
+ * - 加载完成前以纯转义文本渲染（安全降级，无闪烁等待）
  */
+
+type KatexModule = typeof import("katex");
+
+let katexPromise: Promise<KatexModule> | null = null;
+let katexMod: KatexModule | null = null;
+
+/** 惰性加载 KaTeX（JS + CSS 单例，并发调用共享同一 Promise） */
+export function loadKatex(): Promise<KatexModule> {
+  if (katexMod) return Promise.resolve(katexMod);
+  if (!katexPromise) {
+    katexPromise = Promise.all([
+      import("katex"),
+      import("katex/dist/katex.min.css"),
+    ]).then(([mod]) => {
+      katexMod = mod;
+      return mod;
+    });
+  }
+  return katexPromise;
+}
+
+/** 同步获取已加载的 KaTeX 模块（未加载时返回 null） */
+export function getKatexSync(): KatexModule | null {
+  return katexMod;
+}
 
 interface MathContentProps {
   /** 含 LaTeX 的文本（支持 $...$ 行内和 $$...$$ 块级混合） */
@@ -32,7 +60,8 @@ interface MathContentProps {
  */
 function renderFormula(tex: string, displayMode: boolean): string {
   try {
-    return katex.renderToString(tex, {
+    if (!katexMod) throw new Error("katex 未加载");
+    return katexMod.renderToString(tex, {
       displayMode,
       throwOnError: false,
       errorColor: "#dc2626",
@@ -78,13 +107,38 @@ function parseAndRender(text: string): string {
 }
 
 export function MathContent({ text, block, className }: MathContentProps) {
+  const needsKatex = useMemo(
+    () => block || text.includes("$"),
+    [text, block]
+  );
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    if (!needsKatex) return;
+    let cancelled = false;
+    loadKatex()
+      .then(() => {
+        if (!cancelled) setReady(true);
+      })
+      .catch(() => {
+        // 加载失败：保持转义文本降级，不阻塞渲染
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsKatex]);
+
   const html = useMemo(() => {
+    if (!needsKatex || !ready) {
+      // 降级路径：纯转义文本（安全，无公式渲染）
+      return escapeHtml(text).replace(/\n/g, "<br/>");
+    }
     if (block) {
       // 强制块级渲染整段
       return renderFormula(text, true);
     }
     return parseAndRender(text);
-  }, [text, block]);
+  }, [text, block, needsKatex, ready]);
 
   return (
     <div

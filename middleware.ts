@@ -6,20 +6,24 @@
  * 行为：
  *   - 未配置 LOCAL_ACCESS_TOKEN → 全部放行（本地单机默认，行为不变）
  *   - 已配置 → 除公开路径外，所有 /api/* 请求必须携带
- *     x-local-token header 或 ?token= 查询参数，否则返回 401
+ *     x-local-token header（常量时间比较），否则返回 401
  *
  * 公开路径（不校验）：
  *   - /api/local-token：本机浏览器获取令牌的入口（仅 localhost Host 返回）
+ *
+ * 变更记录：
+ *   - 移除 ?token= 查询参数支持（令牌会泄漏到服务器日志/浏览器历史）
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { timingSafeEqualStr } from "@/lib/utils/timing-safe-equal";
 
 const TOKEN_HEADER = "x-local-token";
 
 /** 无需校验的路径前缀 */
 const PUBLIC_PATHS = ["/api/local-token"];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const token = process.env.LOCAL_ACCESS_TOKEN?.trim();
   // 未配置令牌：保持本地单机默认开放行为
   if (!token) return NextResponse.next();
@@ -29,12 +33,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Header 校验
-  if (req.headers.get(TOKEN_HEADER) === token) {
-    return NextResponse.next();
-  }
-  // Query 校验
-  if (req.nextUrl.searchParams.get("token") === token) {
+  // Header 校验（常量时间比较，防时序侧信道）
+  const headerToken = req.headers.get(TOKEN_HEADER);
+  if (headerToken && (await timingSafeEqualStr(headerToken, token))) {
     return NextResponse.next();
   }
 

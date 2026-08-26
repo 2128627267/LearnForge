@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MathContent } from "@/components/math/katex-renderer";
-import katex from "katex";
-import DOMPurify from "dompurify";
+import { getKatexSync, loadKatex } from "@/components/math/katex-renderer";
 
 /**
  * 富文本卡片内容渲染组件
@@ -27,20 +26,28 @@ import DOMPurify from "dompurify";
  *   - 净化后 HTML 来自 Tiptap（用户输入）与 AI 生成内容、导入的数据包，
  *     净化可阻断恶意脚本执行
  *   - 纯文本路径（无 HTML 标签）由 MathContent 转义处理，天然安全
+ *
+ * 性能（P1 优化）：
+ *   - KaTeX / DOMPurify 均为惰性加载：仅当内容为 HTML 或含 $ 公式标记时
+ *     才按需下载对应库；纯文本卡片完全不需要重型依赖
+ *   - 重型依赖就绪前以转义文本渲染（安全降级，加载完成自动刷新）
  */
 
-/** 净化器：统一配置，只净化一次（DOMPurify 是客户端库） */
-let sanitizer: ((html: string) => string) | null = null;
-function getSanitizer(): (html: string) => string {
-  if (!sanitizer) {
-    sanitizer = (html: string) =>
-      DOMPurify.sanitize(html, {
-        ALLOWED_TAGS: [...SANITIZE_ALLOW_LIST],
-        // 链接仅允许 http/https/mailto（阻断 javascript: 等危险协议）
-        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
-      }) as string;
+type DOMPurifyModule = typeof import("dompurify").default;
+
+let sanitizerPromise: Promise<DOMPurifyModule> | null = null;
+let sanitizerMod: DOMPurifyModule | null = null;
+
+/** 惰性加载 DOMPurify（单例，并发调用共享同一 Promise） */
+function loadSanitizer(): Promise<DOMPurifyModule> {
+  if (sanitizerMod) return Promise.resolve(sanitizerMod);
+  if (!sanitizerPromise) {
+    sanitizerPromise = import("dompurify").then((m) => {
+      sanitizerMod = m.default;
+      return m.default;
+    });
   }
-  return sanitizer;
+  return sanitizerPromise;
 }
 
 /** 允许保留的标签白名单（Tiptap 输出所需；脚本/事件属性/危险协议均被移除） */
@@ -48,6 +55,23 @@ const SANITIZE_ALLOW_LIST = [
   "p", "br", "strong", "b", "em", "i", "s", "strike", "u",
   "ul", "ol", "li", "blockquote", "code", "pre", "a", "span", "div", "h1", "h2", "h3",
 ] as const;
+
+/** 净化 HTML（DOMPurify 未就绪时返回转义文本作为安全降级） */
+function sanitizeHtml(html: string): string {
+  if (!sanitizerMod) return escapeHtml(html);
+  return sanitizerMod.sanitize(html, {
+    ALLOWED_TAGS: [...SANITIZE_ALLOW_LIST],
+    // 链接仅允许 http/https/mailto（阻断 javascript: 等危险协议）
+    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
+  }) as string;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 
 interface RichCardContentProps {
   /** 卡片内容（纯文本或 HTML 字符串） */
@@ -81,9 +105,11 @@ function hasHtmlTag(s: string): boolean {
  *       但为简化实现，全文替换（katex 渲染结果为 span，不会破坏 HTML 结构）
  */
 function renderMathInHtml(html: string): string {
+  const katex = getKatexSync();
   // 块级 $$...$$
   let result = html.replace(/\$\$([\s\S]+?)\$\$/g, (_, expr: string) => {
     try {
+      if (!katex) return `<code>$$${expr}$$</code>`;
       return katex.renderToString(expr.trim(), {
         displayMode: true,
         throwOnError: false,
@@ -95,6 +121,7 @@ function renderMathInHtml(html: string): string {
   // 行内 $...$
   result = result.replace(/\$([^\$\n]+?)\$/g, (_, expr: string) => {
     try {
+      if (!katex) return `<code>${expr}</code>`;
       return katex.renderToString(expr.trim(), {
         displayMode: false,
         throwOnError: false,
@@ -118,15 +145,54 @@ export function RichCardContent({
    *   - 空内容 → 占位提示
    *   - 纯文本（无 HTML 标签） → MathContent（保留 LaTeX 支持）
    *   - HTML 字符串 → 解析 LaTeX 后用 dangerouslySetInnerHTML
+   *
+   * 重型依赖（DOMPurify / KaTeX）按需加载：
+   *   - 内容为 HTML 或含 $ 公式标记时才触发加载
+   *   - 就绪前以转义文本渲染（安全，不阻塞首屏）
    */
+  const isHtml = useMemo(() => {
+    if (!content || !content.trim()) return false;
+    return hasHtmlTag(content);
+  }, [content]);
+
+  const needsHeavy = useMemo(
+    () => (isHtml || content.includes("$")) && !!content && !!content.trim(),
+    [content, isHtml]
+  );
+
+  const [heavyReady, setHeavyReady] = useState(false);
+
+  useEffect(() => {
+    if (!needsHeavy) return;
+    let cancelled = false;
+    Promise.all([loadSanitizer(), loadKatex()])
+      .then(() => {
+        if (!cancelled) setHeavyReady(true);
+      })
+      .catch(() => {
+        // 加载失败：保持转义文本降级，不阻塞渲染
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsHeavy]);
+
   const rendered = useMemo(() => {
     if (!content || !content.trim()) return null;
-    if (!hasHtmlTag(content)) {
-      // 纯文本：用 MathContent 渲染（支持 LaTeX）
+    if (!isHtml) {
+      // 纯文本：用 MathContent 渲染（支持 LaTeX，内部自行惰性加载）
       return <MathContent text={content} />;
     }
+    if (!heavyReady) {
+      // 安全降级：DOMPurify/KaTeX 未就绪，仅显示转义文本
+      return (
+        <div className="rich-content prose prose-sm max-w-none">
+          {escapeHtml(content).replace(/\n/g, "<br/>")}
+        </div>
+      );
+    }
     // HTML：先净化（防 XSS），再渲染 LaTeX，最后注入
-    const sanitized = getSanitizer()(content);
+    const sanitized = sanitizeHtml(content);
     const html = renderMathInHtml(sanitized);
     return (
       <div
@@ -134,7 +200,7 @@ export function RichCardContent({
         dangerouslySetInnerHTML={{ __html: html }}
       />
     );
-  }, [content]);
+  }, [content, isHtml, heavyReady]);
 
   if (!rendered) {
     if (!showPlaceholder) return null;
@@ -165,6 +231,7 @@ export function RichCardContent({
 /**
  * 静态渲染函数（供 SSR 或导出时使用）
  * 不依赖 React 渲染上下文
+ * 注意：KaTeX 未加载时公式保持原文（仅适用于无公式内容或降级场景）
  */
 export function renderCardContentToHtml(content: string): string {
   if (!content) return "";

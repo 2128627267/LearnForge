@@ -55,6 +55,40 @@ const MAX_HISTORY = 50;
 /** 粘贴时的位置偏移（每次累加，避免连续粘贴完全重叠） */
 const PASTE_OFFSET = 40;
 
+/**
+ * 节点 data 对象的稳定 ID（WeakMap 缓存，避免 JSON 序列化比较）
+ * 原理：节点数据遵循 immutable 更新约定（每次编辑生成新对象），
+ * 因此对象引用不变 ⇔ 内容未变，可作为轻量指纹的一部分。
+ */
+const dataIdMap = new WeakMap<object, number>();
+let dataIdCounter = 0;
+function dataRefId(data: object): number {
+  let id = dataIdMap.get(data);
+  if (id === undefined) {
+    id = ++dataIdCounter;
+    dataIdMap.set(data, id);
+  }
+  return id;
+}
+
+/**
+ * 生成快照的轻量指纹（替代全量 JSON.stringify 比较）
+ * 仅比较影响历史语义的字段：节点 ID/位置/尺寸/层级 + data 对象引用 + 边拓扑。
+ * 内容字段（如富文本 HTML）通过 data 引用 ID 隐式覆盖，避免序列化大字符串。
+ */
+function snapshotFingerprint(snapshot: Snapshot): string {
+  const nodePart = snapshot.nodes
+    .map(
+      (n) =>
+        `${n.id}:${n.position.x.toFixed(1)},${n.position.y.toFixed(1)}:${n.width ?? 0}:${n.zIndex ?? 0}:${dataRefId(n.data)}`
+    )
+    .join("|");
+  const edgePart = snapshot.edges
+    .map((e) => `${e.id}:${e.source}>${e.target}:${e.sourceHandle ?? ""}:${e.targetHandle ?? ""}:${e.data ? dataRefId(e.data) : 0}`)
+    .join("|");
+  return `${snapshot.nodes.length};${snapshot.edges.length}:${nodePart}:${edgePart}`;
+}
+
 interface UseUndoableCanvasOptions {
   /** 当前节点列表（用于历史快照） */
   nodes: Node<FreeCardData>[];
@@ -128,14 +162,15 @@ export function useUndoableCanvas({
 
   /**
    * 创建当前状态的快照（最小化字段）
-   * 仅保存必要字段以节省内存
+   * data 采用引用共享：节点数据遵循 immutable 更新，旧对象不会被原地修改，
+   * 快照无需深拷贝内容字段（富文本 HTML 等大字符串），显著降低内存与 GC 压力
    */
   const createSnapshot = useCallback((): Snapshot => {
     return {
       nodes: nodes.map((n) => ({
         id: n.id,
         position: { ...n.position },
-        data: { ...n.data } as FreeCardData,
+        data: n.data,
         type: n.type,
         width: n.width ?? undefined,
         zIndex: n.zIndex,
@@ -147,7 +182,7 @@ export function useUndoableCanvas({
         sourceHandle: e.sourceHandle ?? null,
         targetHandle: e.targetHandle ?? null,
         type: e.type,
-        data: e.data ? { ...(e.data as FreeCardEdgeData) } : undefined,
+        data: e.data,
       })),
     };
   }, [nodes, edges]);
@@ -158,10 +193,10 @@ export function useUndoableCanvas({
    */
   const pushHistory = useCallback(
     (snapshot: Snapshot) => {
-      const snapshotKey = JSON.stringify(snapshot);
-      // 跳过无变化的快照
-      if (snapshotKey === lastSnapshotRef.current) return;
-      lastSnapshotRef.current = snapshotKey;
+      // 轻量指纹比较，跳过无变化的快照（避免全量 JSON.stringify 大内容字段）
+      const key = snapshotFingerprint(snapshot);
+      if (key === lastSnapshotRef.current) return;
+      lastSnapshotRef.current = key;
 
       pastRef.current.push(snapshot);
       // 限制历史栈长度
@@ -215,7 +250,7 @@ export function useUndoableCanvas({
         type: e.type || "freeEdge",
       } as Edge<FreeCardEdgeData>))
     );
-    lastSnapshotRef.current = JSON.stringify(prev);
+    lastSnapshotRef.current = snapshotFingerprint(prev);
     bump();
   }, [createSnapshot, setNodes, setEdges, bump]);
 
@@ -242,7 +277,7 @@ export function useUndoableCanvas({
         type: e.type || "freeEdge",
       } as Edge<FreeCardEdgeData>))
     );
-    lastSnapshotRef.current = JSON.stringify(next);
+    lastSnapshotRef.current = snapshotFingerprint(next);
     bump();
   }, [createSnapshot, setNodes, setEdges, bump]);
 
