@@ -33,40 +33,27 @@ import { getKatexSync, loadKatex } from "@/components/math/katex-renderer";
  *   - 重型依赖就绪前以转义文本渲染（安全降级，加载完成自动刷新）
  */
 
-type DOMPurifyModule = typeof import("dompurify").default;
+type SanitizeModule = typeof import("@/lib/editor/sanitize");
 
-let sanitizerPromise: Promise<DOMPurifyModule> | null = null;
-let sanitizerMod: DOMPurifyModule | null = null;
+let sanitizerPromise: Promise<SanitizeModule> | null = null;
+let sanitizerMod: SanitizeModule | null = null;
 
-/** 惰性加载 DOMPurify（单例，并发调用共享同一 Promise） */
-function loadSanitizer(): Promise<DOMPurifyModule> {
+/** 惰性加载净化模块（单例，并发调用共享同一 Promise；DOMPurify 不进主包） */
+function loadSanitizer(): Promise<SanitizeModule> {
   if (sanitizerMod) return Promise.resolve(sanitizerMod);
   if (!sanitizerPromise) {
-    sanitizerPromise = import("dompurify").then((m) => {
-      sanitizerMod = m.default;
-      return m.default;
+    sanitizerPromise = import("@/lib/editor/sanitize").then((m) => {
+      sanitizerMod = m;
+      return m;
     });
   }
   return sanitizerPromise;
 }
 
-/** 允许保留的标签白名单（Tiptap 输出所需；脚本/事件属性/危险协议均被移除） */
-const SANITIZE_ALLOW_LIST = [
-  "p", "br", "strong", "b", "em", "i", "s", "strike", "u",
-  "ul", "ol", "li", "blockquote", "code", "pre", "a", "span", "div", "h1", "h2", "h3",
-  "mark", // 文字高亮（颜色存于 data-color 与内联 style）
-] as const;
-
-/** 净化 HTML（DOMPurify 未就绪时返回转义文本作为安全降级） */
+/** 净化 HTML（净化模块未就绪时返回转义文本作为安全降级） */
 function sanitizeHtml(html: string): string {
   if (!sanitizerMod) return escapeHtml(html);
-  return sanitizerMod.sanitize(html, {
-    ALLOWED_TAGS: [...SANITIZE_ALLOW_LIST],
-    // 放行内联样式（高亮背景色需要）；危险 URI 仍由 ALLOWED_URI_REGEXP 拦截
-    ADD_ATTR: ["style"],
-    // 链接仅允许 http/https/mailto（阻断 javascript: 等危险协议）
-    ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|[^a-z]|[a-z+.-]+(?:[^a-z+.:-]|$))/i,
-  }) as string;
+  return sanitizerMod.sanitizeCardContent(html);
 }
 
 function escapeHtml(s: string): string {

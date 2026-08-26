@@ -30,6 +30,16 @@ export interface HighlightOptions {
   colors: readonly string[];
 }
 
+/** 合法颜色值校验（十六进制 #rgb/#rrggbb/#rrggbbaa 或 rgb()/rgba()） */
+const COLOR_PATTERN =
+  /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$|^rgba?\([^)]+\)$/;
+
+/** 解析并校验高亮颜色：非法值回退默认色 */
+function resolveColor(color: string | undefined, fallback: string): string {
+  if (color && COLOR_PATTERN.test(color)) return color;
+  return fallback;
+}
+
 /** 命令类型声明（Tiptap v2 module augmentation） */
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -91,7 +101,7 @@ export const HighlightMark = Mark.create<HighlightOptions>({
         (color) =>
         ({ commands }) =>
           commands.setMark(this.name, {
-            color: color ?? this.options.defaultColor,
+            color: resolveColor(color, this.options.defaultColor),
           }),
       unsetHighlight:
         () =>
@@ -101,7 +111,7 @@ export const HighlightMark = Mark.create<HighlightOptions>({
         (color) =>
         ({ commands }) =>
           commands.toggleMark(this.name, {
-            color: color ?? this.options.defaultColor,
+            color: resolveColor(color, this.options.defaultColor),
           }),
     };
   },

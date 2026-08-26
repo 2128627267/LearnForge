@@ -35,6 +35,23 @@ export function HighlightPalette({
     DEFAULT_HIGHLIGHT_COLORS[0]
   );
   const rootRef = useRef<HTMLSpanElement>(null);
+  // 取色器防抖定时器：拖选过程中仅本地预览，释放后统一提交（避免污染 undo 栈）
+  const applyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 打开面板时，将取色器同步为当前高亮色（保持一致）
+  useEffect(() => {
+    if (open && activeColor) {
+      setCustomColor(activeColor);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // 组件卸载时清理防抖定时器
+  useEffect(() => {
+    return () => {
+      if (applyTimer.current) clearTimeout(applyTimer.current);
+    };
+  }, []);
 
   // 点击面板外部时关闭
   useEffect(() => {
@@ -47,6 +64,13 @@ export function HighlightPalette({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
+
+  /** 自定义取色：立即更新本地预览，防抖后提交一次（拖选不切碎 undo） */
+  const handleCustomColorChange = (value: string) => {
+    setCustomColor(value);
+    if (applyTimer.current) clearTimeout(applyTimer.current);
+    applyTimer.current = setTimeout(() => onApply(value), 150);
+  };
 
   return (
     <span ref={rootRef} className="relative inline-flex items-center">
@@ -100,10 +124,7 @@ export function HighlightPalette({
             <input
               type="color"
               value={customColor}
-              onChange={(e) => {
-                setCustomColor(e.target.value);
-                onApply(e.target.value);
-              }}
+              onChange={(e) => handleCustomColorChange(e.target.value)}
               className="w-5 h-5 rounded cursor-pointer border border-border/60 bg-transparent p-0"
               title="自定义颜色"
             />
