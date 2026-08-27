@@ -4,10 +4,12 @@
  * POST   /api/cards      - 创建卡片
  */
 import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { cardService } from "@/lib/services/cards/service";
 import { CreateCardSchema, CardQuerySchema } from "@/lib/services/cards/types";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import { authorizePluginCall } from "@/lib/plugins/permissions";
 
 const logger = getLogger("CardsAPI");
@@ -54,11 +56,15 @@ export async function GET(request: NextRequest) {
     const result = await cardService.list(query, TEMP_USER_ID);
     return NextResponse.json(result);
   } catch (err) {
-    logger.error("查询卡片列表失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "查询失败", detail: String(err) },
-      { status: 400 }
-    );
+    // B5 修复（审查）：zod 校验错误 → 400 仅回传首条 issue（用户输入反馈）；
+    // 服务内部异常 → 500 且不泄漏细节（统一 errorResponse）
+    if (err instanceof ZodError) {
+      return NextResponse.json(
+        { error: "查询参数格式错误", detail: err.issues[0]?.message },
+        { status: 400 }
+      );
+    }
+    return errorResponse(logger, "查询卡片列表失败", err);
   }
 }
 
@@ -85,10 +91,13 @@ export async function POST(request: NextRequest) {
     logger.info("卡片创建成功", { cardId: card.id, title: card.title });
     return NextResponse.json(card, { status: 201 });
   } catch (err) {
-    logger.error("创建卡片失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "创建失败", detail: String(err) },
-      { status: 400 }
-    );
+    // B5 修复（审查）：同 GET——zod 校验错误 400，服务异常 500 不泄漏细节
+    if (err instanceof ZodError) {
+      return NextResponse.json(
+        { error: "请求体格式错误", detail: err.issues[0]?.message },
+        { status: 400 }
+      );
+    }
+    return errorResponse(logger, "创建卡片失败", err);
   }
 }

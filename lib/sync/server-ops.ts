@@ -66,14 +66,19 @@ export async function snapshotCurrentLayout(
   });
 
   // 滚动清理：超出保留上限的最老快照
-  const all = await tx.canvasSnapshot.findMany({
-    select: { id: true, createdAt: true },
-  });
-  const prunable = selectSnapshotsToPrune(all, MAX_CANVAS_SNAPSHOTS);
-  if (prunable.length > 0) {
-    await tx.canvasSnapshot.deleteMany({
-      where: { id: { in: prunable } },
+  // B6 优化（审查）：count 预检——稳定态（总数 ≤ 上限）跳过 findMany/deleteMany，
+  // 把每次快照的清理开销从"2 条查询"降为"1 条 count"
+  const total = await tx.canvasSnapshot.count();
+  if (total > MAX_CANVAS_SNAPSHOTS) {
+    const all = await tx.canvasSnapshot.findMany({
+      select: { id: true, createdAt: true },
     });
+    const prunable = selectSnapshotsToPrune(all, MAX_CANVAS_SNAPSHOTS);
+    if (prunable.length > 0) {
+      await tx.canvasSnapshot.deleteMany({
+        where: { id: { in: prunable } },
+      });
+    }
   }
   return true;
 }
@@ -110,13 +115,17 @@ export async function appendChangeLog(
     },
   });
 
-  const all = await tx.dataChangeLog.findMany({
-    select: { id: true, createdAt: true },
-  });
-  const prunable = selectChangeLogToPrune(all, MAX_CHANGE_LOG_ENTRIES);
-  if (prunable.length > 0) {
-    await tx.dataChangeLog.deleteMany({
-      where: { id: { in: prunable } },
+  // B6 优化（审查）：同快照——count 预检，稳定态跳过全表 findMany
+  const total = await tx.dataChangeLog.count();
+  if (total > MAX_CHANGE_LOG_ENTRIES) {
+    const all = await tx.dataChangeLog.findMany({
+      select: { id: true, createdAt: true },
     });
+    const prunable = selectChangeLogToPrune(all, MAX_CHANGE_LOG_ENTRIES);
+    if (prunable.length > 0) {
+      await tx.dataChangeLog.deleteMany({
+        where: { id: { in: prunable } },
+      });
+    }
   }
 }

@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import { snapshotCurrentLayout } from "@/lib/sync/server-ops";
 
 const logger = getLogger("CanvasSnapshotsAPI");
@@ -46,11 +47,8 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (err) {
-    logger.error("读取快照列表失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "读取快照列表失败", detail: String(err) },
-      { status: 500 }
-    );
+    // B5 修复（审查）：500 不回传内部错误细节，统一走 errorResponse
+    return errorResponse(logger, "读取快照列表失败", err);
   }
 }
 
@@ -90,10 +88,7 @@ export async function POST(request: NextRequest) {
       createdAt: latest?.createdAt.toISOString(),
     });
   } catch (err) {
-    logger.error("创建快照失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "创建快照失败", detail: String(err) },
-      { status: 500 }
-    );
+    // B5 修复（审查）：500 不回传内部错误细节，统一走 errorResponse
+    return errorResponse(logger, "创建快照失败", err);
   }
 }

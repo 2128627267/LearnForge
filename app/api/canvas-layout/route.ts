@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { z } from "zod";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import { appendChangeLog, snapshotCurrentLayout } from "@/lib/sync/server-ops";
 import { authorizePluginCall } from "@/lib/plugins/permissions";
 
@@ -71,13 +72,28 @@ const PutBodySchema = z.object({
   source: z.string().default("web"),
 });
 
-/** 乐观锁冲突响应（409 + 服务器最新数据，供客户端合并后重试） */
+/**
+ * 乐观锁冲突响应（409 + 服务器最新数据，供客户端合并后重试）
+ *
+ * B8 防护（审查）：data 为 DB 反序列化结果，损坏时 JSON.parse 抛异常
+ * 若不独立处理会以误导性 500 泛出（客户端看到的是"保存失败"而非数据损坏）。
+ * 损坏时返回明确的 500"画布数据损坏"，客户端不尝试合并（提示用户走快照恢复）。
+ */
 function conflictResponse(layout: { version: number; data: string }) {
+  let canvas: unknown;
+  try {
+    canvas = JSON.parse(layout.data);
+  } catch {
+    logger.error("画布数据损坏，无法构造冲突合并基底", {
+      revision: layout.version,
+    });
+    return NextResponse.json({ error: "画布数据损坏" }, { status: 500 });
+  }
   return NextResponse.json(
     {
       error: "revision_conflict",
       revision: layout.version,
-      data: JSON.parse(layout.data),
+      data: canvas,
     },
     { status: 409 }
   );
@@ -102,17 +118,23 @@ export async function GET(request: NextRequest) {
     if (!layout) {
       return NextResponse.json({ data: null, revision: null, updatedAt: null });
     }
+    // B8 防护（审查）：损坏数据返回明确的"数据损坏"错误，
+    // 而非让 JSON.parse 异常泛出为语义模糊的 500（用户可走快照恢复）
+    let canvas: unknown;
+    try {
+      canvas = JSON.parse(layout.data);
+    } catch {
+      logger.error("画布数据损坏", { revision: layout.version });
+      return NextResponse.json({ error: "画布数据损坏" }, { status: 500 });
+    }
     return NextResponse.json({
-      data: JSON.parse(layout.data),
+      data: canvas,
       revision: layout.version,
       updatedAt: layout.updatedAt.toISOString(),
     });
   } catch (err) {
-    logger.error("读取画布布局失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "读取画布布局失败", detail: String(err) },
-      { status: 500 }
-    );
+    // B5 修复（审查）：500 不回传内部错误细节，统一走 errorResponse
+    return errorResponse(logger, "读取画布布局失败", err);
   }
 }
 
@@ -220,10 +242,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ ok: true, revision: nextRevision });
   } catch (err) {
-    logger.error("保存画布布局失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "保存画布布局失败", detail: String(err) },
-      { status: 500 }
-    );
+    // B5 修复（审查）：500 不回传内部错误细节，统一走 errorResponse
+    return errorResponse(logger, "保存画布布局失败", err);
   }
 }

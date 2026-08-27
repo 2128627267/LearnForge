@@ -4,7 +4,10 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { cardService } from "@/lib/services/cards/service";
+import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
+const logger = getLogger("CardFavoriteAPI");
 const TEMP_USER_ID = "dev-user";
 
 export async function POST(
@@ -15,9 +18,7 @@ export async function POST(
     const result = await cardService.toggleFavorite(params.id, TEMP_USER_ID);
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json(
-      { error: "操作失败", detail: String(err) },
-      { status: 500 }
-    );
+    // B5 修复（审查）：500 不回传内部错误细节，统一走 errorResponse
+    return errorResponse(logger, "操作失败", err);
   }
 }

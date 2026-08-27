@@ -5,9 +5,11 @@
  * DELETE /api/cards/[id]  - 删除卡片
  */
 import { NextRequest, NextResponse } from "next/server";
+import { ZodError } from "zod";
 import { cardService } from "@/lib/services/cards/service";
 import { UpdateCardSchema } from "@/lib/services/cards/types";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("CardDetailAPI");
 const TEMP_USER_ID = "dev-user";
@@ -42,11 +44,15 @@ export async function PUT(
     const card = await cardService.update(params.id, TEMP_USER_ID, input);
     return NextResponse.json(card);
   } catch (err) {
-    logger.error("更新卡片失败", { id: params.id, error: String(err) });
-    return NextResponse.json(
-      { error: "更新失败", detail: String(err) },
-      { status: 400 }
-    );
+    // B5 修复（审查）：zod 校验错误 → 400 仅回传首条 issue；
+    // 服务内部异常 → 500 且不泄漏细节（统一 errorResponse）
+    if (err instanceof ZodError) {
+      return NextResponse.json(
+        { error: "请求体格式错误", detail: err.issues[0]?.message },
+        { status: 400 }
+      );
+    }
+    return errorResponse(logger, "更新卡片失败", err);
   }
 }
 

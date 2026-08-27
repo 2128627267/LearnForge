@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 import {
   appendChangeLog,
   snapshotCurrentLayout,
@@ -37,6 +38,11 @@ export async function POST(
 ) {
   try {
     const { id } = params;
+    // B7 修复（审查）：cuid 格式预检——非法 id 直接 400，
+    // 省一次注定落空的 DB 查询，且不把任意输入送进查询层
+    if (!/^c[0-9a-z]{20,}$/.test(id)) {
+      return NextResponse.json({ error: "快照 id 格式无效" }, { status: 400 });
+    }
     const snapshot = await prisma.canvasSnapshot.findUnique({
       where: { id },
     });
@@ -131,10 +137,7 @@ export async function POST(
 
     return NextResponse.json({ canvas, revision });
   } catch (err) {
-    logger.error("恢复快照失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "恢复快照失败", detail: String(err) },
-      { status: 500 }
-    );
+    // B5 修复（审查）：500 不回传内部错误细节，统一走 errorResponse
+    return errorResponse(logger, "恢复快照失败", err);
   }
 }

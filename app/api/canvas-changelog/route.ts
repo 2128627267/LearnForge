@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
+import { errorResponse } from "@/lib/utils/http-error";
 
 const logger = getLogger("CanvasChangeLogAPI");
 
@@ -29,10 +30,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (err) {
-    logger.error("读取变更日志失败", { error: String(err) });
-    return NextResponse.json(
-      { error: "读取变更日志失败", detail: String(err) },
-      { status: 500 }
-    );
+    // B5 修复（审查）：500 不回传内部错误细节，统一走 errorResponse
+    return errorResponse(logger, "读取变更日志失败", err);
   }
 }
