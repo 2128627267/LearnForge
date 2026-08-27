@@ -188,7 +188,7 @@ export function DataPanel() {
             ))}
             <p className="text-[10px] text-muted-foreground">
               自动保留最近 20 份快照（覆盖保存前备份）。若冲突合并后
-              已删除的卡片"复活"，可从快照恢复删除前状态
+              已删除的卡片「复活」，可从快照恢复删除前状态
             </p>
           </div>
         )}

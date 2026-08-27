@@ -799,7 +799,8 @@ export function CardCanvas({
           .join(" "),
       } as Node<FreeCardData>;
     });
-  }, [nodes, selectedTags, selectedColor, searchMatchIds]);
+    // 依赖含 tagColors：标签色映射变化时需重算颜色过滤（否则结果陈旧）
+  }, [nodes, selectedTags, selectedColor, searchMatchIds, tagColors]);
 
   return (
     <ReactFlowProvider>
