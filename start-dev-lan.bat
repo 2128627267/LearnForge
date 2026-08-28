@@ -1,23 +1,23 @@
 @echo off
 rem Start LearnForge dev server (LAN mode)
-rem å±€åŸŸç½‘æ¨¡å¼å¯åŠ¨è„šæœ¬ï¼šå…è®¸åŒä¸€å±€åŸŸç½‘å†…çš„è®¾å¤‡ï¼ˆæ‰‹æœº/å¹³æ¿ï¼‰è®¿é—®æœ¬åº”ç”¨ã€‚
-rem ä¸Žé»˜è®¤çš„ start-dev.batï¼ˆå›žçŽ¯ç»‘å®šï¼Œç¦æ­¢å±€åŸŸç½‘è®¿é—®ï¼‰äº’æ–¥ï¼ŒæŒ‰éœ€é€‰ç”¨ã€‚
+rem ¾ÖÓòÍøÄ£Ê½Æô¶¯½Å±¾£ºÔÊÐíÍ¬Ò»¾ÖÓòÍøÄÚµÄÉè±¸£¨ÊÖ»ú/Æ½°å£©·ÃÎÊ±¾Ó¦ÓÃ¡£
+rem ÓëÄ¬ÈÏµÄ start-dev.bat£¨»Ø»·°ó¶¨£¬½ûÖ¹¾ÖÓòÍø·ÃÎÊ£©»¥³â£¬°´ÐèÑ¡ÓÃ¡£
 cd /d "%~dp0"
 echo ============================================
 echo  Starting LearnForge dev server (LAN mode)...
 echo ============================================
-rem -H 0.0.0.0: ç›‘å¬æ‰€æœ‰ç½‘å¡ï¼Œå±€åŸŸç½‘è®¾å¤‡å¯é€šè¿‡æœ¬æœº IP è®¿é—®
-rem              ï¼ˆé¦–æ¬¡å¯åŠ¨ Windows ä¼šå¼¹å‡ºé˜²ç«å¢™æŽˆæƒï¼Œéœ€é€‰æ‹©"å…è®¸"ï¼‰
-rem LAN_ACCESS=1: å±€åŸŸç½‘æ¨¡å¼æ ‡è®°ã€‚ç»‘å®š 0.0.0.0 åŽï¼Œå±€åŸŸç½‘å†…ä¸»æœºå¯
-rem              ä¼ªé€  Host: localhost å¤´ç»•è¿‡ /api/local-token çš„æ¥æº
-rem              æ ¡éªŒçªƒå– LOCAL_ACCESS_TOKENï¼Œæ•…è¯¥æ¨¡å¼ä¸‹è‡ªåŠ¨ä¸‹å‘ç«¯ç‚¹
-rem              ç›´æŽ¥ç¦ç”¨ï¼ˆè§ app/api/local-token/route.tsï¼‰ï¼Œä»¤ç‰Œä¸€å¾‹
-rem              ç”±æµè§ˆå™¨ç«¯æ‰‹åŠ¨è¾“å…¥ï¼ˆè¯¦è§ app/layout.tsx å¼•å¯¼è„šæœ¬ï¼‰ã€‚
+rem -H 0.0.0.0: ¼àÌýËùÓÐÍø¿¨£¬¾ÖÓòÍøÉè±¸¿ÉÍ¨¹ý±¾»ú IP ·ÃÎÊ
+rem              £¨Ê×´ÎÆô¶¯ Windows »áµ¯³ö·À»ðÇ½ÊÚÈ¨£¬ÐèÑ¡Ôñ"ÔÊÐí"£©
+rem LAN_ACCESS=1: ¾ÖÓòÍøÄ£Ê½±ê¼Ç¡£°ó¶¨ 0.0.0.0 ºó£¬¾ÖÓòÍøÄÚÖ÷»ú¿É
+rem              Î±Ôì Host: localhost Í·ÈÆ¹ý /api/local-token µÄÀ´Ô´
+rem              Ð£ÑéÇÔÈ¡ LOCAL_ACCESS_TOKEN£¬¹Ê¸ÃÄ£Ê½ÏÂ×Ô¶¯ÏÂ·¢¶Ëµã
+rem              Ö±½Ó½ûÓÃ£¨¼û app/api/local-token/route.ts£©£¬ÁîÅÆÒ»ÂÉ
+rem              ÓÉä¯ÀÀÆ÷¶ËÊÖ¶¯ÊäÈë£¨Ïê¼û app/layout.tsx Òýµ¼½Å±¾£©¡£
 set "LAN_ACCESS=1"
 echo  Open on this PC: http://localhost:3000
 echo  Open on LAN devices (try each address on your phone):
-rem åˆ—å‡ºæœ¬æœºå±€åŸŸç½‘ IPv4 åœ°å€ï¼ˆè¿‡æ»¤å›žçŽ¯ 127.* ä¸Žé“¾è·¯æœ¬åœ° 169.254.*ï¼Œ
-rem è™šæ‹Ÿç½‘å¡/VPN åœ°å€ä¹Ÿä¼šåˆ—å‡ºï¼Œä¸€èˆ¬é€‰ç”¨ 192.168.x.x å³å¯ï¼‰
+rem ÁÐ³ö±¾»ú¾ÖÓòÍø IPv4 µØÖ·£¨¹ýÂË»Ø»· 127.* ÓëÁ´Â·±¾µØ 169.254.*£¬
+rem ÐéÄâÍø¿¨/VPN µØÖ·Ò²»áÁÐ³ö£¬Ò»°ãÑ¡ÓÃ 192.168.x.x ¼´¿É£©
 powershell -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } | ForEach-Object { Write-Host ('   http://' + $_.IPAddress + ':3000') }"
 echo.
 echo  Notes:
