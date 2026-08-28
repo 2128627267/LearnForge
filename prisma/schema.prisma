@@ -856,6 +856,53 @@ model Plugin {
   @@index([enabled])
 }
 
+// ==================== 时间线（历史大事件可视化）====================
+
+/// 时间线（如"中国历史"、"世界近代史"，独立配色与切换）
+model Timeline {
+  id          String   @id @default(cuid())
+  /// 时间线名称（如"中国历史"）
+  name        String
+  /// 描述（可选，便于备忘主题范围）
+  description String?
+  /// 主题色（hex，左侧选择器小格子与事件着色依据）
+  color       String
+  /// 排序权重（越小越靠前）
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  events TimelineEvent[]
+
+  @@index([order])
+}
+
+/// 时间线事件（时间点或时间段）
+/// type: point（时间点事件）| period（时间段事件）
+/// 年份支持负数（公元前），范围约 -10000 ~ 9999
+model TimelineEvent {
+  id         String   @id @default(cuid())
+  timelineId String
+  /// 事件标题（如"鸦片战争"）
+  title      String
+  /// 事件描述（含地点、人物等背景信息，纯文本）
+  content    String   @default("")
+  /// point | period
+  type       String
+  /// 开始年份（公元前用负数）
+  startYear  Int
+  /// 结束年份（仅 period 有值；须 >= startYear）
+  endYear    Int?
+  /// 来源：manual（手动创建）| ai（AI 输入框解析创建）
+  source     String   @default("manual")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  timeline Timeline @relation(fields: [timelineId], references: [id], onDelete: Cascade)
+
+  @@index([timelineId, startYear])
+}
+
 /// 插件工具（manifest.tools 展开行，便于聚合查询与全局唯一约束）
 model PluginTool {
   id               String @id @default(cuid())

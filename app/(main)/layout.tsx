@@ -16,10 +16,14 @@ export default function MainLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  // 画布页面需要全屏，不受 container 限制
+  // 画布与时间线页面需要全屏，不受 container 限制
   // 精确匹配 /canvas 或 /canvas/ 开头（W9 修复：避免匹配 /canvas-xxx）
+  // 时间线页同为水平滚动全屏交互（左选择器 + 时间轴 + AI 输入栏）
   const isFullBleed =
-    pathname === "/canvas" || pathname?.startsWith("/canvas/");
+    pathname === "/canvas" ||
+    pathname?.startsWith("/canvas/") ||
+    pathname === "/timeline" ||
+    pathname?.startsWith("/timeline/");
 
   // 画布页面需要固定视口高度（h-screen），让 flex-1 的 main 有确定高度，
   // 子元素 h-full 才能正确引用（React Flow 需要父容器有明确宽高）

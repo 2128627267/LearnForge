@@ -15,6 +15,7 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 const navItems = [
   { href: "/stats", label: "统计", icon: "📊" },
   { href: "/canvas", label: "画布", icon: "🎨" },
+  { href: "/timeline", label: "时间线", icon: "🕐" },
   { href: "/learn", label: "学习", icon: "📚" },
   { href: "/settings", label: "设置", icon: "⚙️" },
 ];
