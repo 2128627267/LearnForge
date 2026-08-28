@@ -191,6 +191,36 @@ export function yearToX(year: number, range: ViewRange): number {
   return (year - range.left) * range.pxPerYear;
 }
 
+/**
+ * 应用缩放倍率：
+ * 以 fit 基准范围为基础（computeViewRange 的结果），比例乘以 zoom 后
+ * 钳制到 [MIN_PX_PER_YEAR, MAX_PX_PER_YEAR]，内容宽度随之伸缩。
+ * zoom 仅是倍率（1 = 适配视口的基准比例），实际比例以返回值为准。
+ */
+export function applyZoom(base: ViewRange, zoom: number): ViewRange {
+  const pxPerYear = Math.min(
+    Math.max(base.pxPerYear * zoom, MIN_PX_PER_YEAR),
+    MAX_PX_PER_YEAR
+  );
+  const span = base.right - base.left;
+  return { left: base.left, right: base.right, pxPerYear, contentWidth: span * pxPerYear };
+}
+
+/**
+ * 缩放锚点滚动位置：
+ * 返回缩放后的 scrollLeft，使光标下的年份在屏幕上保持不动
+ * （地图式缩放体验）。range 为缩放后的范围（含新比例）。
+ */
+export function anchorZoomScrollLeft(
+  range: ViewRange,
+  prevPxPerYear: number,
+  prevScrollLeft: number,
+  cursorX: number
+): number {
+  const yearAtCursor = range.left + (prevScrollLeft + cursorX) / prevPxPerYear;
+  return Math.max(0, (yearAtCursor - range.left) * range.pxPerYear - cursorX);
+}
+
 /** 单个刻度项 */
 export interface Tick {
   year: number;
@@ -358,6 +388,10 @@ export interface StackFrontInfo {
   groupKey: string;
   /** 是否为该组当前置顶事件（不透明显示、z 序最高） */
   isFront: boolean;
+  /** 组内成员总数（≥2 时渲染层显示位置角标） */
+  groupSize: number;
+  /** 当前置顶成员的序号（0 起，滚轮切换产生） */
+  frontCursor: number;
 }
 
 /**
@@ -377,6 +411,8 @@ export function resolveStackFronts(
       result.set(group.members[i], {
         groupKey: group.key,
         isFront: i === cursor,
+        groupSize: n,
+        frontCursor: cursor,
       });
     }
   }

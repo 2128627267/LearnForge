@@ -12,6 +12,8 @@ import {
   computeStackGroups,
   resolveStackFronts,
   computeInitialScrollLeft,
+  applyZoom,
+  anchorZoomScrollLeft,
   assignEventVisuals,
   EVENT_PALETTE,
   MIN_PX_PER_YEAR,
@@ -378,6 +380,57 @@ describe("resolveStackFronts（滚轮置顶解析）", () => {
   it("游标为负数或越界：取模归一", () => {
     expect(resolveStackFronts(groups, { [key]: -1 }).get("e3")!.isFront).toBe(true);
     expect(resolveStackFronts(groups, { [key]: 2 }).get("e1")!.isFront).toBe(true);
+  });
+});
+
+describe("applyZoom（缩放）", () => {
+  const base = computeViewRange(
+    [
+      { type: "point", startYear: 0, endYear: null },
+      { type: "point", startYear: 1000, endYear: null },
+    ],
+    1200
+  ); // 基准：1px/年
+
+  it("zoom = 1 时与基准一致", () => {
+    expect(applyZoom(base, 1)).toEqual(base);
+  });
+
+  it("放大：比例乘以倍率，内容宽度同步伸缩", () => {
+    const zoomed = applyZoom(base, 2);
+    expect(zoomed.pxPerYear).toBeCloseTo(2);
+    expect(zoomed.contentWidth).toBeCloseTo(base.contentWidth * 2);
+    // 范围边界不变（缩放只改比例）
+    expect(zoomed.left).toBe(base.left);
+    expect(zoomed.right).toBe(base.right);
+  });
+
+  it("比例钳制：倍率再大也不超过 MAX_PX_PER_YEAR", () => {
+    const zoomed = applyZoom(base, 1e6);
+    expect(zoomed.pxPerYear).toBe(MAX_PX_PER_YEAR);
+  });
+
+  it("比例钳制：倍率再小也不低于 MIN_PX_PER_YEAR", () => {
+    const zoomed = applyZoom(base, 1e-6);
+    expect(zoomed.pxPerYear).toBe(MIN_PX_PER_YEAR);
+  });
+});
+
+describe("anchorZoomScrollLeft（缩放锚点）", () => {
+  const range = { left: 0, right: 1000, pxPerYear: 2, contentWidth: 2000 };
+
+  it("光标下的年份在缩放前后保持在同一屏幕位置", () => {
+    const prevPx = 1;
+    const prevScrollLeft = 300;
+    const cursorX = 500;
+    // 缩放前光标下的年份：0 + (300+500)/1 = 800
+    const nextScrollLeft = anchorZoomScrollLeft(range, prevPx, prevScrollLeft, cursorX);
+    // 缩放后该年份的屏幕位置：(800-0)*2 - nextScrollLeft 应仍为 500
+    expect(800 * 2 - nextScrollLeft).toBeCloseTo(cursorX);
+  });
+
+  it("左端缩放不产生负滚动位置", () => {
+    expect(anchorZoomScrollLeft(range, 1, 0, 100)).toBeGreaterThanOrEqual(0);
   });
 });
 

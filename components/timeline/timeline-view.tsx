@@ -9,14 +9,24 @@
  * - 时间段事件：轴上彩色横条（够宽时内嵌标题）+ 卡片
  * - 重合事件：半透明原地叠加（不做垂直错开），事件色板区分颜色
  *
- * 交互：
- * - 鼠标滚轮：左右滚动浏览（纵向滚轮转换为横向滚动）；
- *   悬停在堆叠卡片上方时改为切换该堆叠组的置顶事件
- * - 按住拖拽：平移浏览
+ * 交互（地图式）：
+ * - 鼠标滚轮：以光标为中心缩放时间轴；悬停在堆叠卡片上时改为
+ *   切换该堆叠组的置顶事件（指哪儿切哪儿，与缩放互不干扰）
+ * - 按住拖拽：平移浏览；触控板横扫同理
  * - 点击事件卡片：展开显示详情描述（默认仅显示事件名 + 时间）
  * - 展开态点击"编辑"：打开编辑对话框
+ * - 右下角缩放控件：放大 / 缩小 / 重置
  */
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+} from "react";
 import { cn } from "@/lib/utils/cn";
 import type { TimelineEventDTO } from "@/lib/services/timelines/types";
 import {
@@ -26,8 +36,12 @@ import {
   computeStackGroups,
   resolveStackFronts,
   computeInitialScrollLeft,
+  applyZoom,
+  anchorZoomScrollLeft,
   formatYear,
   EVENT_CARD_WIDTH,
+  MIN_PX_PER_YEAR,
+  MAX_PX_PER_YEAR,
   type StackGroup,
 } from "@/lib/timeline/view-scale";
 
@@ -82,12 +96,22 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
     }, []);
 
     // --------------------------------------------------------------
-    // 视图计算（纯函数：范围 / 刻度 / 事件布局）
+    // 缩放状态（zoom 为相对基准比例的倍率，1 = 适配视口）
+    // 实际比例经 applyZoom 钳制；切换时间线时重置
     // --------------------------------------------------------------
-    const range = useMemo(
+    const [zoom, setZoom] = useState(1);
+    useEffect(() => {
+      setZoom(1);
+    }, [resetKey]);
+
+    // --------------------------------------------------------------
+    // 视图计算（纯函数：基准范围 → 缩放 → 刻度 / 事件布局）
+    // --------------------------------------------------------------
+    const baseRange = useMemo(
       () => computeViewRange(events, viewportWidth || 800),
       [events, viewportWidth]
     );
+    const range = useMemo(() => applyZoom(baseRange, zoom), [baseRange, zoom]);
     const ticks = useMemo(() => computeTicks(range), [range]);
     const laidOut = useMemo(() => layoutEvents(events, range), [events, range]);
 
@@ -124,12 +148,53 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
     }, [resetKey, events.length, range, viewportWidth]);
 
     // --------------------------------------------------------------
-    // 滚轮：纵向滚动转换为横向浏览（wheel 事件需 passive:false 才能 preventDefault）
-    // 例外 1：展开卡片的详情区（data-inner-scroll）自身可纵向滚动，放行不拦截
-    // 例外 2：悬停在多事件堆叠上方时，滚轮切换该组的置顶事件（不滚动时间轴）
+    // 滚轮（地图式交互，wheel 事件需 passive:false 才能 preventDefault）：
+    // - 默认：以光标为中心缩放时间轴
+    // - 悬停在多事件堆叠卡片（[data-stack]）上：切换该组置顶事件
+    // - 触控板横扫（deltaX 为主）：交给浏览器原生横向滚动
+    // 例外：展开卡片的详情区（data-inner-scroll）自身可纵向滚动，放行不拦截
     // --------------------------------------------------------------
     const groupsRef = useRef<StackGroup[]>([]);
     groupsRef.current = groups;
+    const zoomRef = useRef(zoom);
+    zoomRef.current = zoom;
+    const basePxRef = useRef(baseRange.pxPerYear);
+    basePxRef.current = baseRange.pxPerYear;
+    const rangeRef = useRef(range);
+    rangeRef.current = range;
+    /** 缩放提交后待应用的锚点（useLayoutEffect 在新宽度渲染完成后回填 scrollLeft） */
+    const pendingAnchorRef = useRef<{
+      cursorX: number;
+      prevPxPerYear: number;
+      prevScrollLeft: number;
+    } | null>(null);
+
+    /** 依据当前倍率与期望倍率计算钳制后的新倍率（实际比例不越界） */
+    const clampZoom = useCallback((raw: number) => {
+      const basePx = basePxRef.current;
+      const eff = Math.min(
+        Math.max(basePx * raw, MIN_PX_PER_YEAR),
+        MAX_PX_PER_YEAR
+      );
+      return eff / basePx;
+    }, []);
+
+    const commitZoom = useCallback((newZoom: number, cursorX: number) => {
+      const el = containerRef.current;
+      if (!el) return;
+      pendingAnchorRef.current = {
+        cursorX,
+        prevPxPerYear: rangeRef.current.pxPerYear,
+        prevScrollLeft: el.scrollLeft,
+      };
+      setZoom(newZoom);
+    }, []);
+
+    /** 视口中心 X（缩放控件按钮的锚点） */
+    const centerCursorX = useCallback(
+      () => (containerRef.current?.clientWidth ?? 0) / 2,
+      []
+    );
 
     useEffect(() => {
       const el = containerRef.current;
@@ -137,11 +202,15 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
       const onWheel = (e: WheelEvent) => {
         const target = e.target as HTMLElement | null;
         if (target?.closest?.("[data-inner-scroll]")) return;
+        // 触控板横扫 → 原生横向滚动
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+        e.preventDefault();
 
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-          // 堆叠命中：光标所在的卡片侧 + 内容区 X 落入某多成员组的覆盖范围
+        // 悬停堆叠卡片：滚轮切换该组置顶事件
+        if (target?.closest?.("[data-stack]")) {
           const rect = el.getBoundingClientRect();
-          const side = e.clientY - rect.top < rect.height / 2 ? "top" : "bottom";
+          const side =
+            e.clientY - rect.top < rect.height / 2 ? "top" : "bottom";
           const contentX = e.clientX - rect.left + el.scrollLeft;
           const group = groupsRef.current.find(
             (g) =>
@@ -151,7 +220,6 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
               contentX <= g.right
           );
           if (group) {
-            e.preventDefault();
             const step = e.deltaY > 0 ? 1 : -1;
             setFrontIndex((prev) => ({
               ...prev,
@@ -159,12 +227,30 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
             }));
             return;
           }
-          el.scrollLeft += e.deltaY;
         }
+
+        // 缩放（滚轮向下缩小、向上放大，指数步进手感均匀）
+        const factor = Math.exp(-e.deltaY * 0.002);
+        const cursorX = e.clientX - el.getBoundingClientRect().left;
+        commitZoom(clampZoom(zoomRef.current * factor), cursorX);
       };
       el.addEventListener("wheel", onWheel, { passive: false });
       return () => el.removeEventListener("wheel", onWheel);
-    }, []);
+    }, [clampZoom, commitZoom]);
+
+    // 缩放渲染完成后应用锚点：保持光标下年份不动
+    useLayoutEffect(() => {
+      const el = containerRef.current;
+      const pending = pendingAnchorRef.current;
+      if (!el || !pending) return;
+      pendingAnchorRef.current = null;
+      el.scrollLeft = anchorZoomScrollLeft(
+        range,
+        pending.prevPxPerYear,
+        pending.prevScrollLeft,
+        pending.cursorX
+      );
+    }, [range]);
 
     // --------------------------------------------------------------
     // 对外句柄：滚动到指定年份（新建事件后定位）
@@ -344,6 +430,8 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
                 {/* 事件卡片（上下交错）：默认仅基础信息，点击展开详情；重合时叠加，滚轮切换置顶 */}
                 {(() => {
                   const expanded = expandedId === event.id;
+                  const stack = stackFronts.get(event.id);
+                  const stacked = (stack?.groupSize ?? 1) > 1;
                   return (
                     <div
                       role="button"
@@ -356,6 +444,7 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
                           handleEventClick(event);
                         }
                       }}
+                      data-stack={stacked ? "" : undefined}
                       className={cn(
                         "absolute text-left rounded-lg border bg-card shadow-sm p-2.5 pl-3",
                         "cursor-pointer outline-none transition-all",
@@ -391,6 +480,13 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
                       >
                         {formatEventYears(event)}
                       </div>
+
+                      {/* 堆叠位置角标：n/m 提示可滚轮切换（展开态让位给编辑区） */}
+                      {stacked && isFront && !expanded && (
+                        <span className="absolute bottom-1.5 right-2 text-[9px] leading-none text-muted-foreground/70 tabular-nums">
+                          {(stack?.frontCursor ?? 0) + 1}/{stack?.groupSize}
+                        </span>
+                      )}
 
                       {/* 详情区：仅展开态显示（完整描述 + 编辑入口） */}
                       {expanded && (
@@ -443,6 +539,33 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
 
         {/* 右侧渐隐提示：内容可横向滚动 */}
         <div className="absolute right-0 top-0 bottom-0 w-10 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+
+        {/* 缩放控件（右下角）：放大 / 缩小 / 重置，以视口中心为锚点 */}
+        <div className="absolute bottom-4 right-4 z-30 flex flex-col rounded-lg border border-border bg-card/90 backdrop-blur shadow-md overflow-hidden">
+          {([
+            { label: "+", title: "放大", action: () => commitZoom(clampZoom(zoomRef.current * 1.5), centerCursorX()) },
+            { label: "−", title: "缩小", action: () => commitZoom(clampZoom(zoomRef.current / 1.5), centerCursorX()) },
+          ].map(({ label, title, action }) => (
+            <button
+              key={title}
+              type="button"
+              title={title}
+              onClick={action}
+              className="w-8 h-8 flex items-center justify-center text-foreground/80 hover:bg-primary/10 hover:text-primary transition-colors text-base leading-none"
+            >
+              {label}
+            </button>
+          )))}
+          <button
+            type="button"
+            title="重置缩放"
+            onClick={() => commitZoom(1, centerCursorX())}
+            disabled={zoom === 1}
+            className="w-8 h-8 flex items-center justify-center text-[10px] text-foreground/80 hover:bg-primary/10 hover:text-primary transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            1:1
+          </button>
+        </div>
       </div>
     );
   }
