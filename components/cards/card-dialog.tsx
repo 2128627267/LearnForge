@@ -13,7 +13,6 @@ import {
   DEFAULT_DRAFT,
   useCardDialogDraft,
   type CardDraft,
-  type LearningMode,
 } from "@/lib/hooks/use-card-dialog-draft";
 import { toast } from "@/components/shared/toaster";
 import { Plus, X } from "lucide-react";
@@ -22,16 +21,6 @@ import type {
   CardDialogState,
   CreateNodeItem,
 } from "./card-dialog-types";
-
-/** 学习模式选项（Select 用） */
-export const LEARNING_MODE_OPTIONS: Array<{
-  value: LearningMode;
-  label: string;
-}> = [
-  { value: "deep", label: "深度学习（画布+AI+关系线）" },
-  { value: "review", label: "复式学习（测验+推荐+复习）" },
-  { value: "both", label: "两者兼顾（先理解后记忆）" },
-];
 
 /** 颜色色板（与画布标签色一致） */
 const COLOR_PALETTE = [
@@ -170,23 +159,6 @@ export function CardDialog({
                 onChange={(e) => updateForm({ title: e.target.value })}
                 placeholder="卡片标题"
               />
-            </div>
-
-            {/* 学习方式 */}
-            <div className="space-y-1.5">
-              <label className="block text-sm font-medium">学习方式</label>
-              <Select
-                value={form.learningMode}
-                onChange={(v) =>
-                  updateForm({ learningMode: v as LearningMode })
-                }
-                options={LEARNING_MODE_OPTIONS}
-                className="w-full"
-              />
-              <p className="text-xs text-muted-foreground">
-                深度学习：画布 + AI 提问/扩展 + 关系线，用于理解与构建知识体系；
-                复式学习：导入后经测验、推荐、复习巩固记忆与运用。
-              </p>
             </div>
 
             {/* 内容 */}
