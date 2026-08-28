@@ -7,10 +7,11 @@
  * - 中心横轴 + 自适应刻度（年份标签）
  * - 时间点事件：轴上圆点 + 引线 + 卡片（上下交错防重叠）
  * - 时间段事件：轴上彩色横条（够宽时内嵌标题）+ 卡片
- * - 重合事件：按重叠层次（lane）在轴上方逐层错开 + 事件色板区分颜色
+ * - 重合事件：半透明原地叠加（不做垂直错开），事件色板区分颜色
  *
  * 交互：
- * - 鼠标滚轮：左右滚动浏览（纵向滚轮转换为横向滚动）
+ * - 鼠标滚轮：左右滚动浏览（纵向滚轮转换为横向滚动）；
+ *   悬停在堆叠卡片上方时改为切换该堆叠组的置顶事件
  * - 按住拖拽：平移浏览
  * - 点击事件卡片：展开显示详情描述（默认仅显示事件名 + 时间）
  * - 展开态点击"编辑"：打开编辑对话框
@@ -22,10 +23,12 @@ import {
   computeViewRange,
   computeTicks,
   layoutEvents,
+  computeStackGroups,
+  resolveStackFronts,
   computeInitialScrollLeft,
   formatYear,
   EVENT_CARD_WIDTH,
-  LANE_STEP,
+  type StackGroup,
 } from "@/lib/timeline/view-scale";
 
 /** 对外暴露的控制句柄（供父组件在创建事件后滚动定位） */
@@ -89,6 +92,18 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
     const laidOut = useMemo(() => layoutEvents(events, range), [events, range]);
 
     // --------------------------------------------------------------
+    // 堆叠分组与置顶状态（重合事件半透明叠加，滚轮切换置顶）
+    // - groups：同侧卡片横向重叠的事件链（EVENT_CARD_WIDTH 判定）
+    // - frontIndex：各组当前置顶游标（滚轮滚动产生，state 持久化）
+    // --------------------------------------------------------------
+    const groups = useMemo(() => computeStackGroups(laidOut), [laidOut]);
+    const [frontIndex, setFrontIndex] = useState<Record<string, number>>({});
+    const stackFronts = useMemo(
+      () => resolveStackFronts(groups, frontIndex),
+      [groups, frontIndex]
+    );
+
+    // --------------------------------------------------------------
     // 初始滚动定位：时间线切换（resetKey 变化）或首次获得视口宽度时
     // - 单事件居中；多事件定位到最早事件；之后保持用户滚动位置
     // - 依赖数组刻意只含 events.length（事件增删不重置滚动位置）；
@@ -110,16 +125,40 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
 
     // --------------------------------------------------------------
     // 滚轮：纵向滚动转换为横向浏览（wheel 事件需 passive:false 才能 preventDefault）
-    // 例外：展开卡片的详情区（data-inner-scroll）自身可纵向滚动，放行不拦截
+    // 例外 1：展开卡片的详情区（data-inner-scroll）自身可纵向滚动，放行不拦截
+    // 例外 2：悬停在多事件堆叠上方时，滚轮切换该组的置顶事件（不滚动时间轴）
     // --------------------------------------------------------------
+    const groupsRef = useRef<StackGroup[]>([]);
+    groupsRef.current = groups;
+
     useEffect(() => {
       const el = containerRef.current;
       if (!el) return;
       const onWheel = (e: WheelEvent) => {
         const target = e.target as HTMLElement | null;
         if (target?.closest?.("[data-inner-scroll]")) return;
+
         if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-          e.preventDefault();
+          // 堆叠命中：光标所在的卡片侧 + 内容区 X 落入某多成员组的覆盖范围
+          const rect = el.getBoundingClientRect();
+          const side = e.clientY - rect.top < rect.height / 2 ? "top" : "bottom";
+          const contentX = e.clientX - rect.left + el.scrollLeft;
+          const group = groupsRef.current.find(
+            (g) =>
+              g.side === side &&
+              g.members.length > 1 &&
+              contentX >= g.left &&
+              contentX <= g.right
+          );
+          if (group) {
+            e.preventDefault();
+            const step = e.deltaY > 0 ? 1 : -1;
+            setFrontIndex((prev) => ({
+              ...prev,
+              [group.key]: (prev[group.key] ?? 0) + step,
+            }));
+            return;
+          }
           el.scrollLeft += e.deltaY;
         }
       };
@@ -182,9 +221,10 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
     // --------------------------------------------------------------
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
-    // 切换时间线时收起展开卡片
+    // 切换时间线时重置：收起展开卡片 + 归零置顶游标
     useEffect(() => {
       setExpandedId(null);
+      setFrontIndex({});
     }, [resetKey]);
 
     /** 卡片点击：拖拽后抑制误触；点击切换展开/收起 */
@@ -231,25 +271,26 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
             </div>
           ))}
 
-          {/* 事件渲染（重合事件按 lane 分层 + 颜色区分） */}
-          {laidOut.map(({ event, x, barStartX, barEndX, side, color: eventColor, lane }) => {
+          {/* 事件渲染（重合事件半透明叠加 + 颜色区分 + 滚轮切换置顶） */}
+          {laidOut.map(({ event, x, barStartX, barEndX, side, color: eventColor }) => {
             const isTop = side === "top";
-            /** lane 垂直偏移（px）：重合事件锚点在轴心上方逐层错开 */
-            const laneOffset = lane * LANE_STEP;
+            /** 是否为所在堆叠组的置顶事件（非置顶半透明沉底） */
+            const isFront = stackFronts.get(event.id)?.isFront ?? true;
             const barWidth =
               barStartX !== null && barEndX !== null ? barEndX - barStartX : 0;
             return (
               <div key={event.id}>
-                {/* 时间段事件：横条（lane 分层错开，够宽时内嵌标题） */}
+                {/* 时间段事件：横条（重合时原地叠加，非置顶半透明） */}
                 {event.type === "period" && barStartX !== null && barEndX !== null && (
                   <div
-                    className="absolute h-3 rounded-full shadow-sm flex items-center px-1.5 overflow-hidden"
+                    className="absolute h-3 rounded-full shadow-sm flex items-center px-1.5 overflow-hidden transition-opacity"
                     style={{
                       left: barStartX,
                       width: Math.max(barWidth, 4),
-                      // 横条中心位于"轴心 - laneOffset"，高度 12px 故 top 偏移 6px
-                      top: `calc(50% - ${laneOffset + 6}px)`,
+                      // 横条中心位于轴心，高度 12px 故 top 偏移 6px
+                      top: "calc(50% - 6px)",
                       backgroundColor: eventColor,
+                      opacity: isFront ? 1 : 0.5,
                     }}
                     title={`${event.title}（${formatEventYears(event)}）`}
                   >
@@ -265,41 +306,42 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
                   </div>
                 )}
 
-                {/* 时间点事件：圆点（lane 分层错开） */}
+                {/* 时间点事件：圆点（重合时原地叠加，非置顶半透明） */}
                 {event.type === "point" && (
                   <div
-                    className="absolute w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background shadow"
+                    className="absolute w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background shadow transition-opacity"
                     style={{
                       left: x,
-                      top: `calc(50% - ${laneOffset}px)`,
+                      top: "50%",
                       backgroundColor: eventColor,
+                      opacity: isFront ? 1 : 0.5,
                     }}
                   />
                 )}
 
-                {/* 引线：从事件锚点（含 lane 偏移）连到卡片 */}
+                {/* 引线：从事件锚点（轴心）连到卡片 */}
                 <div
                   className="absolute w-px"
                   style={
                     isTop
                       ? {
-                          // top 侧：卡片底边 = 轴心上方 (24 + laneOffset)，引线恒 24px
+                          // top 侧：卡片底边 = 轴心上方 24px，引线恒 24px
                           left: x,
-                          top: `calc(50% - ${24 + laneOffset}px)`,
+                          top: "calc(50% - 24px)",
                           height: 24,
                           backgroundColor: `${eventColor}66`,
                         }
                       : {
-                          // bottom 侧：卡片顶边 = 轴心下方 24px，引线跨越 laneOffset + 24
+                          // bottom 侧：卡片顶边 = 轴心下方 24px
                           left: x,
-                          top: `calc(50% - ${laneOffset}px)`,
-                          height: 24 + laneOffset,
+                          top: "50%",
+                          height: 24,
                           backgroundColor: `${eventColor}66`,
                         }
                   }
                 />
 
-                {/* 事件卡片（上下交错）：默认仅基础信息，点击展开详情 */}
+                {/* 事件卡片（上下交错）：默认仅基础信息，点击展开详情；重合时叠加，滚轮切换置顶 */}
                 {(() => {
                   const expanded = expandedId === event.id;
                   return (
@@ -319,16 +361,18 @@ export const TimelineView = forwardRef<TimelineViewHandle, TimelineViewProps>(
                         "cursor-pointer outline-none transition-all",
                         expanded
                           ? "z-20 shadow-md border-primary/40"
-                          : "hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5"
+                          : isFront
+                            ? "z-10 hover:shadow-md hover:border-primary/40"
+                            : "opacity-60 hover:opacity-90 hover:shadow-md hover:border-primary/40"
                       )}
                       style={{
                         left: x - EVENT_CARD_WIDTH / 2,
                         width: EVENT_CARD_WIDTH,
                         // 左侧色条呼应事件颜色（重合事件一眼可辨）
                         borderLeft: `3px solid ${eventColor}`,
-                        // top 侧向上生长且随 lane 上移；bottom 侧向下生长
+                        // top 侧向上生长；bottom 侧向下生长
                         ...(isTop
-                          ? { bottom: `calc(50% + ${24 + laneOffset}px)` }
+                          ? { bottom: "calc(50% + 24px)" }
                           : { top: "calc(50% + 24px)" }),
                       }}
                       aria-expanded={expanded}

@@ -9,10 +9,11 @@ import {
   computeViewRange,
   computeTicks,
   layoutEvents,
+  computeStackGroups,
+  resolveStackFronts,
   computeInitialScrollLeft,
   assignEventVisuals,
   EVENT_PALETTE,
-  LANE_STEP,
   MIN_PX_PER_YEAR,
   MAX_PX_PER_YEAR,
   VIEW_MARGIN_YEARS,
@@ -208,19 +209,19 @@ describe("layoutEvents", () => {
   });
 });
 
-describe("assignEventVisuals（重合事件染色 + 分层）", () => {
-  it("不重合的事件：全部 lane 0 且同为基础色", () => {
+describe("assignEventVisuals（重合事件染色）", () => {
+  it("不重合的事件：统一基础色", () => {
     const visuals = assignEventVisuals([
       { id: "a", startYear: 1800, endYear: 1810 },
       { id: "b", startYear: 1850, endYear: 1860 },
       { id: "c", startYear: 1900, endYear: null },
     ]);
     for (const id of ["a", "b", "c"]) {
-      expect(visuals.get(id)).toEqual({ color: EVENT_PALETTE[0], lane: 0 });
+      expect(visuals.get(id)).toEqual({ color: EVENT_PALETTE[0] });
     }
   });
 
-  it("时间重合的事件：lane 逐层递增且颜色互异", () => {
+  it("时间重合的事件：颜色互异", () => {
     const visuals = assignEventVisuals([
       { id: "a", startYear: 1840, endYear: 1842 },
       { id: "b", startYear: 1841, endYear: 1845 },
@@ -229,56 +230,54 @@ describe("assignEventVisuals（重合事件染色 + 分层）", () => {
     const a = visuals.get("a")!;
     const b = visuals.get("b")!;
     const c = visuals.get("c")!;
-    expect(a.lane).toBe(0);
-    expect(b.lane).toBe(1);
-    expect(c.lane).toBe(2);
     // 三者颜色互异
     expect(new Set([a.color, b.color, c.color]).size).toBe(3);
   });
 
-  it("时间点落在时间段内：分到不同 lane（视觉错开）", () => {
+  it("时间点落在时间段内：颜色区分", () => {
     const visuals = assignEventVisuals([
       { id: "period", startYear: 1937, endYear: 1945 },
       { id: "point", startYear: 1941, endYear: null },
     ]);
-    expect(visuals.get("period")!.lane).toBe(0);
-    expect(visuals.get("point")!.lane).toBe(1);
     expect(visuals.get("point")!.color).not.toBe(visuals.get("period")!.color);
   });
 
-  it("端点相接视为重合（同层会互相覆盖）", () => {
+  it("端点相接视为重合（叠加时完全重合）", () => {
     const visuals = assignEventVisuals([
       { id: "a", startYear: 1800, endYear: 1810 },
       { id: "b", startYear: 1810, endYear: 1820 },
     ]);
-    expect(visuals.get("b")!.lane).toBe(1);
+    expect(visuals.get("b")!.color).not.toBe(visuals.get("a")!.color);
   });
 
-  it("lane 复用：前序事件结束后，后续事件回到低层", () => {
+  it("重合链结束后，后续事件回到基础色", () => {
     const visuals = assignEventVisuals([
       { id: "a", startYear: 1800, endYear: 1810 },
       { id: "b", startYear: 1805, endYear: 1815 },
-      { id: "c", startYear: 1820, endYear: 1830 }, // a、b 均已结束 → 回到 lane 0
+      { id: "c", startYear: 1820, endYear: 1830 }, // a、b 均已结束 → 回到基础色
     ]);
-    expect(visuals.get("c")!.lane).toBe(0);
     expect(visuals.get("c")!.color).toBe(EVENT_PALETTE[0]);
   });
 
-  it("色板循环兜底：超过 8 层同时重合不崩溃", () => {
+  it("色板循环兜底：超过 8 个事件同时重合不崩溃", () => {
     const events = Array.from({ length: 12 }, (_, i) => ({
       id: `e${i}`,
       startYear: 1900 + i, // 依次重叠（i 与 i+1 间隔 1 年，10 年跨度内全重叠）
       endYear: 1911,
     }));
     const visuals = assignEventVisuals(events);
-    // 全部有合法结果且 lane 递增
-    const lanes = events.map((e) => visuals.get(e.id)!.lane);
-    expect(lanes).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    // 全部有合法结果且颜色均属于色板
+    const colors = events.map((e) => visuals.get(e.id)!.color);
+    for (const color of colors) {
+      expect(EVENT_PALETTE).toContain(color);
+    }
+    // 前 8 个（色板容量内）颜色互异
+    expect(new Set(colors.slice(0, 8)).size).toBe(8);
   });
 });
 
-describe("layoutEvents（含染色与分层输出）", () => {
-  it("输出包含事件颜色与 lane（重合事件分流）", () => {
+describe("layoutEvents（含染色输出）", () => {
+  it("输出包含事件颜色（重合事件颜色互异）", () => {
     const events = [
       makeEvent({ id: "a", type: "period", startYear: 1840, endYear: 1842 }),
       makeEvent({ id: "b", startYear: 1841 }),
@@ -287,10 +286,98 @@ describe("layoutEvents（含染色与分层输出）", () => {
     const laid = layoutEvents(events, range);
     const a = laid.find((l) => l.event.id === "a")!;
     const b = laid.find((l) => l.event.id === "b")!;
-    expect(a.lane).toBe(0);
-    expect(b.lane).toBe(1);
     expect(a.color).not.toBe(b.color);
-    expect(typeof LANE_STEP).toBe("number");
+  });
+});
+
+describe("computeStackGroups（堆叠分组）", () => {
+  it("同侧且卡片横向重叠的事件归入同组", () => {
+    const events = [
+      makeEvent({ id: "e1", startYear: 1840 }),
+      makeEvent({ id: "e2", startYear: 1841 }),
+      makeEvent({ id: "e3", startYear: 1842 }),
+    ];
+    const range = computeViewRange(events, 1200);
+    const groups = computeStackGroups(layoutEvents(events, range));
+    // 布局交错后 e1/e3 同在上方且卡片重叠 → 同组；e2 独占下方
+    expect(groups).toHaveLength(2);
+    const top = groups.find((g) => g.side === "top")!;
+    expect(top.members).toEqual(["e1", "e3"]);
+  });
+
+  it("年份相距很远的事件各自成组", () => {
+    const events = [
+      makeEvent({ id: "e1", startYear: 0 }),
+      makeEvent({ id: "e2", startYear: 2000 }),
+    ];
+    const range = computeViewRange(events, 1200);
+    const groups = computeStackGroups(layoutEvents(events, range));
+    expect(groups).toHaveLength(2);
+    for (const group of groups) {
+      expect(group.members).toHaveLength(1);
+    }
+  });
+
+  it("上下两侧的卡片不归入同组（互不遮挡）", () => {
+    const events = [
+      makeEvent({ id: "e1", startYear: 1840 }),
+      makeEvent({ id: "e2", startYear: 1841 }),
+      makeEvent({ id: "e3", startYear: 1842 }),
+    ];
+    const range = computeViewRange(events, 1200);
+    const laid = layoutEvents(events, range);
+    const groups = computeStackGroups(laid);
+    // 三事件交错上下后，任一组不超过 2 个成员（不会上下混叠）
+    for (const group of groups) {
+      expect(group.members.length).toBeLessThanOrEqual(2);
+    }
+    expect(groups.reduce((n, g) => n + g.members.length, 0)).toBe(3);
+  });
+
+  it("时间段事件按锚点参与分组", () => {
+    const events = [
+      makeEvent({ id: "p1", type: "period", startYear: 1840, endYear: 1860 }),
+      makeEvent({ id: "e1", startYear: 1850 }),
+      makeEvent({ id: "e2", startYear: 1851 }),
+    ];
+    const range = computeViewRange(events, 1200);
+    const groups = computeStackGroups(layoutEvents(events, range));
+    // 段锚点 1850 与点 1850/1851 卡片重叠；交错后 p1 与 e2 同在上方 → 同组
+    const top = groups.find((g) => g.side === "top")!;
+    expect(top.members).toEqual(["p1", "e2"]);
+  });
+});
+
+describe("resolveStackFronts（滚轮置顶解析）", () => {
+  // 三事件交错后 e1/e3 同在上方构成堆叠组
+  const events = [
+    makeEvent({ id: "e1", startYear: 1840 }),
+    makeEvent({ id: "e2", startYear: 1841 }),
+    makeEvent({ id: "e3", startYear: 1842 }),
+  ];
+  const groups = computeStackGroups(
+    layoutEvents(events, computeViewRange(events, 1200))
+  );
+  const top = groups.find((g) => g.side === "top")!;
+  const key = top.key;
+
+  it("游标缺省：首个成员置顶", () => {
+    const fronts = resolveStackFronts(groups, {});
+    expect(fronts.get("e1")!.isFront).toBe(true);
+    expect(fronts.get("e3")!.isFront).toBe(false);
+    // 单成员组始终置顶
+    expect(fronts.get("e2")!.isFront).toBe(true);
+  });
+
+  it("游标为 1：第二个成员置顶", () => {
+    const fronts = resolveStackFronts(groups, { [key]: 1 });
+    expect(fronts.get("e1")!.isFront).toBe(false);
+    expect(fronts.get("e3")!.isFront).toBe(true);
+  });
+
+  it("游标为负数或越界：取模归一", () => {
+    expect(resolveStackFronts(groups, { [key]: -1 }).get("e3")!.isFront).toBe(true);
+    expect(resolveStackFronts(groups, { [key]: 2 }).get("e1")!.isFront).toBe(true);
   });
 });
 

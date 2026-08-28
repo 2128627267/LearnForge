@@ -41,15 +41,10 @@ export const EVENT_PALETTE = [
   "#ef4444", // red
 ] as const;
 
-/** 重合事件的垂直分层步进（px）：lane n 的锚点在轴心上方 n × LANE_STEP */
-export const LANE_STEP = 14;
-
-/** 事件的视觉属性（染色 + 分层结果） */
+/** 事件的视觉属性（重合事件染色） */
 export interface EventVisual {
   /** 显示颜色（hex） */
   color: string;
-  /** 重叠层次：0 = 紧贴时间轴，越大越靠上（与重合事件错开） */
-  lane: number;
 }
 
 /** 事件的区间终点（point 事件的终点即其开始年份） */
@@ -60,58 +55,58 @@ function eventEndYear(
 }
 
 /**
- * 区间图贪心染色 + 分层（允许事件重合，用颜色与层次区分）
+ * 区间图贪心染色（允许事件重合，用颜色区分）
  *
  * 算法：事件按开始年份升序扫描（扫描线）：
- *   1. 释放已结束的 lane（lane 上事件终点 < 当前事件起点 → 不再重合）
- *   2. 统计仍活跃 lane 占用的颜色，从色板取未被占用的第一个颜色
- *   3. 放入最小空闲 lane 槽位（无空闲则开新层）
+ *   1. 释放已结束的槽位（槽位上事件终点 < 当前事件起点 → 不再重合）
+ *   2. 统计仍活跃槽位占用的颜色，从色板取未被占用的第一个颜色
  *
  * 重合定义：区间存在交集（端点相接视为重合，视觉上更安全——
- * 相接的横条共享一个像素点，同层会互相覆盖）。
+ * 相接的横条共享一个像素点，叠加时完全重合）。
  *
- * 效果：不重合的事件全部 lane 0 / 基础色；重合链内事件逐层错开且颜色互异。
+ * 效果：不重合的事件统一基础色；重合链内事件颜色互异。
+ * 重合事件在视图中半透明原地叠加，滚轮切换置顶（见 computeStackGroups）。
  */
 export function assignEventVisuals(
   events: Array<Pick<TimelineEventDTO, "id" | "startYear" | "endYear">>
 ): Map<string, EventVisual> {
   const sorted = [...events].sort((a, b) => a.startYear - b.startYear);
-  /** lane 槽位：null = 空闲；{ endYear, colorIndex } = 占用中 */
-  const lanes: Array<{ endYear: number; colorIndex: number } | null> = [];
+  /** 活跃槽位：null = 空闲；{ endYear, colorIndex } = 占用中（用于颜色去重） */
+  const slots: Array<{ endYear: number; colorIndex: number } | null> = [];
   const result = new Map<string, EventVisual>();
 
   for (const ev of sorted) {
     const start = ev.startYear;
     const end = eventEndYear(ev);
 
-    // 1. 释放已结束的 lane（终点早于当前起点 → 不重合）
-    for (let i = 0; i < lanes.length; i++) {
-      if (lanes[i] && lanes[i]!.endYear < start) lanes[i] = null;
+    // 1. 释放已结束的槽位（终点早于当前起点 → 不重合）
+    for (let i = 0; i < slots.length; i++) {
+      if (slots[i] && slots[i]!.endYear < start) slots[i] = null;
     }
 
     // 2. 活跃颜色集合 → 取色板中未被占用的第一个索引
     const usedColors = new Set<number>();
-    for (const lane of lanes) {
-      if (lane) usedColors.add(lane.colorIndex);
+    for (const slot of slots) {
+      if (slot) usedColors.add(slot.colorIndex);
     }
     let colorIndex = 0;
     while (usedColors.has(colorIndex) && colorIndex < EVENT_PALETTE.length - 1) {
       colorIndex++;
     }
-    // 色板用尽（8+ 层同时重合）：按 lane 取模复用（极端场景兜底）
+    // 色板用尽（8+ 事件同时重合）：按活跃数取模复用（极端场景兜底）
     if (usedColors.has(colorIndex)) {
-      colorIndex = lanes.filter(Boolean).length % EVENT_PALETTE.length;
+      colorIndex = slots.filter(Boolean).length % EVENT_PALETTE.length;
     }
 
-    // 3. 最小空闲 lane 槽位
-    let laneIndex = lanes.indexOf(null);
-    if (laneIndex === -1) {
-      laneIndex = lanes.length;
-      lanes.push(null);
+    // 放入最小空闲槽位（无空闲则开新槽）
+    let slotIndex = slots.indexOf(null);
+    if (slotIndex === -1) {
+      slotIndex = slots.length;
+      slots.push(null);
     }
 
-    lanes[laneIndex] = { endYear: end, colorIndex };
-    result.set(ev.id, { color: EVENT_PALETTE[colorIndex], lane: laneIndex });
+    slots[slotIndex] = { endYear: end, colorIndex };
+    result.set(ev.id, { color: EVENT_PALETTE[colorIndex] });
   }
 
   return result;
@@ -243,8 +238,6 @@ export interface LaidOutEvent {
   side: EventSide;
   /** 事件显示色（重合事件颜色互异） */
   color: string;
-  /** 重叠层次（0 = 紧贴轴，重合事件逐层上移错开） */
-  lane: number;
 }
 
 /**
@@ -252,9 +245,10 @@ export interface LaidOutEvent {
  * - 按锚点年份升序处理
  * - 优先放上方；若与上方已放卡片水平区间重叠则放下方；两侧都重叠时保持当前优先侧（接受重叠）
  * - 重叠判定基于卡片宽度（EVENT_CARD_WIDTH）
+ * - 重合事件不做垂直分层：视图层半透明原地叠加 + 滚轮切换置顶（computeStackGroups）
  */
 export function layoutEvents(events: TimelineEventDTO[], range: ViewRange): LaidOutEvent[] {
-  // 重合事件的染色 + 分层（颜色与 lane 一并输出给渲染层）
+  // 重合事件的染色（颜色输出给渲染层）
   const visuals = assignEventVisuals(events);
 
   // 按锚点年份排序（稳定排序：同年按创建时间）
@@ -301,10 +295,91 @@ export function layoutEvents(events: TimelineEventDTO[], range: ViewRange): Laid
     }
 
     (side === "top" ? topUsed : bottomUsed).push(cardLeft);
-    const visual = visuals.get(event.id) ?? { color: EVENT_PALETTE[0], lane: 0 };
+    const visual = visuals.get(event.id) ?? { color: EVENT_PALETTE[0] };
     result.push({ event, x, barStartX, barEndX, side, ...visual });
   }
 
+  return result;
+}
+
+/** 堆叠分组：同侧且卡片横向区间重叠的事件链（滚轮切换单位） */
+export interface StackGroup {
+  /** 组键（side + 首个成员事件 id，用作 frontIndex 状态键） */
+  key: string;
+  /** 卡片所在侧 */
+  side: EventSide;
+  /** 成员事件 id（按布局顺序，锚点升序） */
+  members: string[];
+  /** 组内卡片横向覆盖范围（内容区坐标，用于滚轮命中判定） */
+  left: number;
+  right: number;
+}
+
+/**
+ * 计算堆叠分组：
+ * 同一侧内，卡片横向区间重叠（含相接）的事件归入同一组。
+ * 布局结果按锚点升序，但同侧事件在扫描顺序中可能与另一侧交错
+ * （top/bottom/top…），因此按侧别各自维护开放链。
+ * 仅含单个成员的组同样返回（渲染层据此判断是否可滚轮切换）。
+ */
+export function computeStackGroups(laid: LaidOutEvent[]): StackGroup[] {
+  const groups: StackGroup[] = [];
+  /** 各侧当前开放链（同侧事件按 x 升序，链内单调延伸） */
+  const open: Record<EventSide, StackGroup | null> = { top: null, bottom: null };
+
+  for (const { event, side, x } of laid) {
+    const cardLeft = x - EVENT_CARD_WIDTH / 2;
+    const cardRight = x + EVENT_CARD_WIDTH / 2;
+    const chain = open[side];
+
+    if (chain && cardLeft <= chain.right) {
+      // 与本侧开放链重叠 → 并入
+      chain.members.push(event.id);
+      chain.right = Math.max(chain.right, cardRight);
+    } else {
+      const group: StackGroup = {
+        key: `${side}:${event.id}`,
+        side,
+        members: [event.id],
+        left: cardLeft,
+        right: cardRight,
+      };
+      groups.push(group);
+      open[side] = group;
+    }
+  }
+
+  return groups;
+}
+
+/** 事件在堆叠组内的置顶状态（渲染层消费） */
+export interface StackFrontInfo {
+  /** 所属组键 */
+  groupKey: string;
+  /** 是否为该组当前置顶事件（不透明显示、z 序最高） */
+  isFront: boolean;
+}
+
+/**
+ * 解析每个事件的置顶状态：
+ * frontIndex 记录各组的置顶游标（滚轮切换产生），取模防越界；
+ * 游标缺失或组只有单成员时，首个成员置顶。
+ */
+export function resolveStackFronts(
+  groups: StackGroup[],
+  frontIndex: Record<string, number>
+): Map<string, StackFrontInfo> {
+  const result = new Map<string, StackFrontInfo>();
+  for (const group of groups) {
+    const n = group.members.length;
+    const cursor = ((frontIndex[group.key] ?? 0) % n + n) % n;
+    for (let i = 0; i < n; i++) {
+      result.set(group.members[i], {
+        groupKey: group.key,
+        isFront: i === cursor,
+      });
+    }
+  }
   return result;
 }
 
