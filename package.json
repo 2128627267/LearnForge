@@ -1,6 +1,6 @@
 {
   "name": "learnforge-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "LearnForge - AI 赋能的便签卡片式 Web 学习工具",
   "scripts": {
