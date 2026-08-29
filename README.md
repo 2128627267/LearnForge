@@ -73,21 +73,28 @@ npm install
 cp .env.example .env.local   # edit values as needed
 npx prisma generate
 npx prisma db push
-npm run dev                  # http://localhost:3000
+npm run dev -- -p 3100 -H 127.0.0.1   # http://localhost:3100
 ```
 
 ### Start Modes
 
 ```bat
-:: Default (loopback only, no LAN access)
+:: Default (port 3100, loopback only, no LAN access)
 start-dev.bat
+
+:: Git Bash / macOS / Linux
+bash start-dev.sh
 
 :: LAN access mode (binds 0.0.0.0, disables auto-token endpoint)
 start-dev-lan.bat
 
-:: Stop
+:: Stop (finds and kills the process on port 3100)
 stop-dev.bat
 ```
+
+> Port 3100 aligns with the NC-API port table (3000 is reserved for the
+> newcenturies main site). Loopback-only binding prevents spoofed
+> `Host: localhost` requests from stealing the local access token.
 
 ## Project Structure
 

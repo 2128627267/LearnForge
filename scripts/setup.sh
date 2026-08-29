@@ -31,8 +31,8 @@ MIN_NODE_MAJOR=18
 # 服务监听地址：仅绑定回环，禁止局域网访问
 # （安全加固：防止外部主机伪造 Host: localhost 获取本地访问令牌）
 BIND_HOST="127.0.0.1"
-# 开发/生产服务端口（与 Next 默认一致）
-PORT=3000
+# 开发/生产服务端口（NC-API 端口表：LearnForge=3100；3000 留给主站）
+PORT=3100
 # 环境变量文件（Next.js 按 .env.local > .env 优先级加载）
 ENV_EXAMPLE_FILE=".env.example"
 ENV_LOCAL_FILE=".env.local"

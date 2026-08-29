@@ -53,7 +53,7 @@ $MinNodeMajor = 18
 # （安全加固：防止外部主机伪造 Host: localhost 获取本地访问令牌）
 $BindHost = "127.0.0.1"
 # 开发/生产服务端口（与 Next 默认一致）
-$Port = 3000
+$Port = 3100
 # 环境变量文件（Next.js 按 .env.local > .env 优先级加载）
 $EnvExampleFile = ".env.example"
 $EnvLocalFile = ".env.local"
