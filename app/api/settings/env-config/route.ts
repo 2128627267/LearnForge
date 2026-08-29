@@ -6,7 +6,8 @@
  * 安全：
  * - 敏感键（*KEY* / *SECRET* / *TOKEN* 等）返回时脱敏（前4后4）
  * - 更新时若值含 "****" 占位则跳过（避免覆盖真实值）
- * - 仅允许 AI_ 前缀与白名单键（NEXTAUTH_*）的更新，其他键拒绝
+ * - 仅允许 AI_ 前缀与非密白名单键（NEXTAUTH_URL）的更新，其他键拒绝；
+ *   密钥类（NEXTAUTH_SECRET/CRON_SECRET）一律手编 .env.local，不经 API（修复审计 LF-M3）
  */
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
@@ -29,7 +30,9 @@ const SENSITIVE_PATTERN = /(KEY|SECRET|TOKEN|PASSWORD)/i;
 
 /** 允许更新的键：AI_ 前缀（全量） + 少量白名单 */
 const ALLOWED_KEY_PREFIXES = ["AI_"];
-const ALLOWED_KEYS = ["NEXTAUTH_SECRET", "NEXTAUTH_URL", "CRON_SECRET"];
+// 修复审计 LF-M3：密钥类（NEXTAUTH_SECRET / CRON_SECRET）不得经 API 写入——
+// 否则拿到 API 访问权者可替换会话签名密钥伪造任意会话。此类密钥仅允许手编 .env.local。
+const ALLOWED_KEYS = ["NEXTAUTH_URL"];
 
 /**
  * 禁止通过 API 写入的键（安全黑名单）：
