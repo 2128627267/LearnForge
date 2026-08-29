@@ -16,6 +16,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getLogger } from "@/lib/utils/logger";
 import { errorResponse } from "@/lib/utils/http-error";
 import { isEnvVarReference, isFileLink } from "@/lib/config/env-resolver";
+import { checkApiUrlSafety } from "@/lib/ai/url-guard";
 
 const logger = getLogger("ModelsAPI");
 
@@ -257,6 +258,16 @@ export async function POST(request: NextRequest) {
       apiFormat = normalizeApiFormat(raw);
     }
 
+    // 15 号报告 LF-H1：apiUrl 入库前做 SSRF 校验（私网/回环/元数据地址默认拒绝，
+    // 本机 AI 服务经 LEARNFORGE_ALLOW_LOCAL_AI=1 放行回环）；运行时出站前仍有二次守卫
+    const rawApiUrl = typeof body.apiUrl === "string" ? body.apiUrl.trim() : "";
+    if (rawApiUrl) {
+      const guard = await checkApiUrlSafety(rawApiUrl);
+      if (!guard.ok) {
+        return NextResponse.json({ error: `apiUrl 被拒绝：${guard.reason}` }, { status: 400 });
+      }
+    }
+
     // 创建记录
     const created = await prisma.aIModelConfig.create({
       data: {
@@ -266,7 +277,7 @@ export async function POST(request: NextRequest) {
         apiFormat,
         modelName: body.modelName,
         apiKey: typeof body.apiKey === "string" ? body.apiKey : "",
-        apiUrl: typeof body.apiUrl === "string" ? body.apiUrl : "",
+        apiUrl: rawApiUrl,
         isActive: body.isActive !== false,
         order: typeof body.order === "number" ? body.order : 0,
         metadata: JSON.stringify(body.metadata ?? {}),

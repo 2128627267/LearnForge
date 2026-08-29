@@ -12,6 +12,7 @@
 import type { AIProvider, ChatMessage, ChatOptions } from "./types";
 import { loadAIConfig } from "./types";
 import { JSON_MODE_CONSTRAINT } from "./provider-openai";
+import { assertSafeApiUrl } from "./url-guard";
 
 /** 单次调用超时（毫秒） */
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -43,12 +44,13 @@ function buildBase(config?: HttpProviderConfig): BaseConfig {
   };
 }
 
-/** 发起 POST 请求并校验状态 */
+/** 发起 POST 请求并校验状态（出站前经 SSRF 守卫，15 号报告 LF-H1） */
 async function postJSON(
   url: string,
   headers: Record<string, string>,
   body: unknown
 ): Promise<Response> {
+  await assertSafeApiUrl(url);
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },

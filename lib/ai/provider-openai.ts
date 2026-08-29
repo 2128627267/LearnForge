@@ -8,6 +8,7 @@ import { streamText } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import type { AIProvider, ChatMessage, ChatOptions } from "./types";
 import { loadAIConfig } from "./types";
+import { assertSafeApiUrl } from "./url-guard";
 
 /** 单次 LLM 调用超时（毫秒），防止外部服务挂起导致请求无限等待 */
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -35,11 +36,13 @@ export class OpenAICompatProvider implements AIProvider {
   readonly name = "openai-chat";
   private model: ReturnType<ReturnType<typeof createOpenAI>["chat"]>;
   private modelName: string;
+  private baseUrl: string;
 
   constructor(config?: Partial<OpenAIProviderConfig>) {
     const base = loadAIConfig();
     const apiKey = config?.apiKey || base.apiKey;
     const baseUrl = config?.baseUrl || base.baseUrl;
+    this.baseUrl = baseUrl;
     const openai = createOpenAI({
       apiKey: apiKey || "missing-key",
       baseURL: baseUrl,
@@ -57,6 +60,7 @@ export class OpenAICompatProvider implements AIProvider {
     messages: ChatMessage[],
     options?: ChatOptions
   ): AsyncIterable<string> {
+    await assertSafeApiUrl(this.baseUrl);
     const msgs = options?.jsonMode
       ? appendJsonConstraint(messages)
       : messages;
@@ -98,6 +102,7 @@ export class OpenAIResponsesProvider implements AIProvider {
     messages: ChatMessage[],
     options?: ChatOptions
   ): AsyncIterable<string> {
+    await assertSafeApiUrl(`${this.baseUrl}/v1/responses`);
     const msgs = options?.jsonMode
       ? appendJsonConstraint(messages)
       : messages;
