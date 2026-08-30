@@ -25,8 +25,20 @@ const PUBLIC_PATHS = ["/api/local-token"];
 
 export async function middleware(req: NextRequest) {
   const token = process.env.LOCAL_ACCESS_TOKEN?.trim();
-  // 未配置令牌：保持本地单机默认开放行为
-  if (!token) return NextResponse.next();
+  // 未配置令牌：本地单机默认开放（仅回环绑定时可接受，官方启动脚本均 -H 127.0.0.1）；
+  // 但 LAN_ACCESS=1（显式暴露局域网/内网穿透）时必须 fail-closed——
+  // 无鉴权暴露 /api/* 正是 LF-M1 的核心风险面
+  if (!token) {
+    if (process.env.LAN_ACCESS === "1") {
+      return new NextResponse(
+        JSON.stringify({
+          error: "LAN_ACCESS=1 但未配置 LOCAL_ACCESS_TOKEN，已拒绝访问（fail-closed）",
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    return NextResponse.next();
+  }
 
   const { pathname } = req.nextUrl;
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {

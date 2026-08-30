@@ -218,20 +218,3 @@ export function RichCardContent({
   return <div className={className}>{rendered}</div>;
 }
 
-/**
- * 静态渲染函数（供 SSR 或导出时使用）
- * 不依赖 React 渲染上下文
- * 注意：KaTeX 未加载时公式保持原文（仅适用于无公式内容或降级场景）
- */
-export function renderCardContentToHtml(content: string): string {
-  if (!content) return "";
-  if (!hasHtmlTag(content)) {
-    // 纯文本：转义 HTML 字符，再渲染 LaTeX
-    const escaped = content
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    return renderMathInHtml(escaped).replace(/\n/g, "<br/>");
-  }
-  return renderMathInHtml(content);
-}

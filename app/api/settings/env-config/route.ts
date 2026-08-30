@@ -39,7 +39,7 @@ const ALLOWED_KEYS = ["NEXTAUTH_URL"];
  * - AI_KEY_FILES_DIR：扩展 lib/config/env-resolver 的 file:// 白名单目录，
  *   若可被 API 改写为任意盘符，配合模型配置 file:// 语法即可读取全盘文件
  */
-const FORBIDDEN_KEYS = new Set(["AI_KEY_FILES_DIR"]);
+const FORBIDDEN_KEYS = new Set(["AI_KEY_FILES_DIR", "AI_BASE_URL", "AI_API_URL", "AI_ENDPOINT", "AI_HOST", "AI_PROXY"]); // LF-B1：URL 类键改写可致 API Key 外传，一律禁改
 
 /** 行解析：KEY=value */
 const LINE_REGEX = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/;
